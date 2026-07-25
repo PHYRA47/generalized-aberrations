@@ -10,7 +10,9 @@ Geoffroi Côté &nbsp;&bull;&nbsp; Ethan Tseng &nbsp;&bull;&nbsp; Felix Heide
 
 </div>
 
-This is the official code repository for the paper **"Generalized Aberrations for Processing-Aware Optical Design"**.
+<img width="1080" height="203" alt="preview" src="https://github.com/user-attachments/assets/ad4b9fef-de2f-4250-83ea-fb6a92a74d6d" />
+
+<br> This is the official code repository for the paper **"Generalized Aberrations for Processing-Aware Optical Design"**.
 
 This repository provides the **EISOPTX** (End-to-End Imaging System Optimization of Imaging Optics) framework. It
 includes tools for the end-to-end optimization of optical designs, supporting experiments ranging from standard lens
