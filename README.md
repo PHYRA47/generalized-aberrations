@@ -1,6 +1,6 @@
 <div align="center">
 
-# Generalized Aberrations for Processing-Aware Optical Design
+# Generalized Aberrations<br>for Processing-Aware Optical Design
 
 *ACM Transactions on Graphics (SIGGRAPH 2026)*
 
