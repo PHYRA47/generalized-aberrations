@@ -1,0 +1,192 @@
+model:
+  lens_parameterization:
+    class_path: eisoptx.optimization.parameterization.LensParameterization
+    init_args:
+      lens_sequence: s-aRa-aRa-aRa-aRa-
+      a:
+        - [-1.0, 0.001266907, -0.0002430947, 0.0001026264, -2.215351e-05, 2.288955e-06, -1.324127e-07]
+        - [-1.0, -0.0005284391, 0.0003399575, 1.568473e-05, -2.967055e-05, 4.610324e-06, -2.424879e-07]
+        - [-1.0, 0.01702904, -0.002119813, 5.849358e-05, -9.217781e-06, 5.718473e-06, -4.52703e-07]
+        - [-1.0, 0.01824947, -0.002197021, -1.086826e-05, 1.717228e-05, 3.589286e-06, -4.578792e-07]
+        - [-1.0, -0.02331526, 0.0002013231, 0.0003526032, -0.0002390193, 6.093306e-05, -4.516964e-06]
+        - [-1.0, -0.01696401, 0.001550812, -0.0003439666, 5.811568e-05, 6.295244e-07, -2.621411e-07]
+        - [-1.0, -0.004042541, 0.001078288, -0.0001686849, -3.409906e-07, 1.3012e-06, -2.172551e-07]
+        - [-1.0, -0.009455243, 0.001613983, -0.0002356763, 5.008647e-06, -8.320972e-08, -5.274502e-08]
+      c: [0.2401778, -0.05210156, -0.107621, 0.009539608, -0.06704662, 0.2059518, 0.2510158,
+          0.1472348]
+      s: [-0.7731229, 1.446147, 0.5476055, 0.249741, 5.475702, 0.2569122, 1.436243, 0.6971047,
+          1.790545]
+      d: []
+      m: []
+      nd: [1.544, 1.661, 1.544, 1.642]
+      vd: [55.9, 20.4, 55.9, 22.4]
+      nominal_wavelength: 550.
+      freeze:
+        s:
+          default: False
+          toggle_row_col_list: [-1]
+        c:
+          default: False
+          toggle_row_col_list: [-1]
+        g: False
+        a:
+          default: False
+          toggle_row_col_list:
+            - [null, 0]
+        d: False
+        m: False
+      target_efl: 14.
+      solve_idx: -1
+      total_track_length_solve: 11.9
+      paraxial_image_solve: False
+      qc_vars: False
+      scale_factor: 2.5
+      glass_file: configs/moldable_materials.csv
+  ray_initialization:
+    class_path: eisoptx.modeling.ray_initialization.RayInitialization
+    init_args:
+      aperture_type: epd
+      aperture: 5.
+      hfov: 9.5
+      n_fields: 11
+      pupil_sampling_mode: skew_uniform_jittered
+      pupil_sampling_kwargs:
+        n_r: 16  # 256
+        n_i: 1
+      ray_aiming_steps: 0
+      wavelengths: [450., 475., 500., 525., 550., 575., 600., 625., 650.]
+  residuals:
+    - class_path: eisoptx.optimization.residuals.TransverseRayAberrationResiduals
+      init_args:
+        weight: 1.
+    - class_path: eisoptx.optimization.residuals.RayPathResiduals
+      init_args:
+        weight: 20.
+        min_cutoff: .1
+        max_cutoff: .inf
+        min_cutoff_refractive: .25
+        max_cutoff_refractive: 4.
+        min_cutoff_refractive_relative: 0.3333
+        max_cutoff_refractive_relative: 3.
+        other_min_cutoffs: [[0, -.inf]]
+        other_max_cutoffs: []
+    - class_path: eisoptx.optimization.residuals.RayAngleResiduals
+      init_args:
+        weight: 10.
+        max_angle: 60.
+    - class_path: eisoptx.optimization.residuals.SurfaceNormalResiduals
+      init_args:
+        weight: 10.
+        max_angle: 30.
+    - class_path: eisoptx.optimization.residuals.DistortionResiduals
+      init_args:
+        weight: 10.
+        threshold: 0.02
+    - class_path: eisoptx.optimization.residuals.GlassMeshDistanceResiduals
+      init_args:
+        weight: 1e-03
+        threshold: 0.
+        max_simplex_size: 1.25
+    - class_path: eisoptx.optimization.residuals.MarginalRayPathResiduals
+      init_args:
+        weight: 1.
+  optics_simulator:
+    class_path: eisoptx.modeling.simulation.OpticsSimulator
+    init_args:
+      shape: [25, 25]
+      shape_type: 'psf'
+      psf_abs_size: 0.025
+      psf_grid_shape: [5, 9]
+      diffraction_f_number: 2.8
+      kernel_type: linear
+      sigma_rel: 1.
+      wavelength_weights:
+        - [0., 0., 0., 0., 0., 0., 1., 1., 1.]
+        - [0., 0., 0., 1., 1., 1., 0., 0., 0.]
+        - [1., 1., 1., 0., 0., 0., 0., 0., 0.]
+      patch_overlap: 0.25
+  lens_optimizer:
+    class_path: eisoptx.optimization.optimizers.LMOptimizer
+    init_args:
+      lm_parameter: 1.
+      damped_term_min: 1e-4
+data:
+  class_path: eisoptx.data.datasets.NoneDataModule
+  init_args:
+    n_samples: 100
+trainer:
+  accelerator: auto
+  max_steps: 200
+  log_every_n_steps: 1
+  val_check_interval: 100
+  check_val_every_n_epoch:
+  precision: 64
+  logger:
+    class_path: eisoptx.main.CustomLogger
+    init_args:
+      save_dir: logs
+  callbacks:
+    - eisoptx.utils.callbacks.CodeVSeqFileCallback
+    - eisoptx.utils.callbacks.ConfigFileCallback
+    - eisoptx.main.CustomProgressBar
+    - class_path: ModelCheckpoint
+      init_args:
+        every_n_train_steps: 100
+    - class_path: eisoptx.utils.visualization.VisualizationCallback
+      init_args:
+        every_n_steps: 10
+        visualizations:
+          - class_path: eisoptx.utils.visualization.LensLayout
+            init_args:
+              wavelengths: [450., 650., 550.]
+              n_fields: 4
+              n_rays: 3
+              rc_params:
+                figure.figsize: '3.2, 1.6'
+                lines.linewidth: '.75'
+                axes.linewidth: '.75'
+                xtick.major.size: '5.'
+                xtick.minor.size: '3.'
+                ytick.major.size: '5.'
+                ytick.minor.size: '3.'
+          - class_path: eisoptx.utils.visualization.GlassPlot
+            init_args:
+              rc_params:
+                lines.linewidth: '1.'
+          - class_path: eisoptx.utils.visualization.RGBPSFs
+            init_args:
+              field_indices: [0, 2, 4, 6, 8, 10]
+              sqrt_scale: True
+              normalize_by_max: False
+              cmap: viridis
+              rc_params:
+                figure.figsize: '3.2, 1.6'
+                font.size: '6'
+          - class_path: eisoptx.utils.visualization.PSFs
+            init_args:
+              wavelength_indices: [8, 7, 6, 5, 4, 3, 2, 1, 0]
+              field_indices: [0, 2, 4, 6, 8, 10]
+              sqrt_scale: True
+              normalize_by_max: False
+              cmap: viridis
+              rc_params:
+                figure.figsize: '3.2, 4.8'
+                font.size: '6'
+          - class_path: eisoptx.utils.visualization.RayFanPlot
+            init_args:
+              n_fields: 4
+              wavelengths: [450., 500., 550., 600., 650.]
+              ref_w: 2
+              rc_params:
+                  figure.figsize: '3.2, 4.0'
+                  legend.columnspacing: '0.5'
+                  legend.handlelength: '1.25'
+        save_formats: [png]
+        rc_params:
+          figure.figsize: '3.2, 2.1'
+          figure.constrained_layout.use: 'True'
+          figure.constrained_layout.h_pad: '0.015625'
+          figure.constrained_layout.w_pad: '0.015625'
+          figure.dpi: '200'
+          font.size: '7'
+          lines.linewidth: '.75'

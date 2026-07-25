@@ -1,0 +1,65 @@
+model:
+  lens_parameterization:
+    class_path: eisoptx.optimization.parameterization.LensParameterization
+    init_args:
+      lens_sequence: aRa-aRa-m-s-aRa-aRa-aRa-R-
+      a:
+        - [-1.0, -7.369516e-05, 2.677954e-05, -2.522975e-06, 8.911982e-08, -4.33491e-09, 6.488905e-11]
+        - [-1.0, -0.0009927976, -0.0002013557, 2.842752e-05, -1.581452e-06, 4.145526e-08,
+           -4.300883e-10]
+        - [-1.0, 0.01384419, -0.003294936, 0.0003347409, -1.769185e-05, 4.760051e-07, -5.003825e-09]
+        - [-1.0, 0.01536291, -0.003383522, 0.000333856, -1.742158e-05, 4.478347e-07, -4.002371e-09]
+        - [-1.0, -0.01236146, 0.003986663, -0.002316019, 0.000474412, -4.559991e-05, 1.908013e-06]
+        - [-1.0, -0.01894112, 0.006421815, -0.003347995, 0.0007088774, -7.101387e-05, 2.950757e-06]
+        - [-1.0, -0.03400116, 0.02018707, -0.00609773, 0.0008266933, -4.459008e-05, 3.177634e-07]
+        - [-1.0, -0.02637726, 0.0195342, -0.005832946, 0.0008855637, -6.801842e-05, 2.086225e-06]
+        - [-1.0, -0.01050149, 0.002091454, -0.0001859364, 1.058191e-05, -3.721693e-07, 5.753804e-09]
+        - [-1.0, -0.01134054, 0.001799087, -0.0001659914, 1.141769e-05, -4.81816e-07, 8.36758e-09]
+      c: [0.1691622, -0.02242414, -0.007671763, 0.04343655, 0.0510336, 0.1229443, -0.03801076,
+          0.07708877, 0.0272977, 0.01411774, 0.0, 0.0]
+      d: []
+      m:
+        - [-337.0587, -68.94297, -140.3335, -374.0008, 0.0, 0.0, 0.0, 0.0]
+      nd: [1.535, 1.661, 1.544, 1.544, 1.64, 1.5168]
+      s: [3.44836, 0.09990565, 0.2496522, 0.5573289, 3.372278, 0.3498646, 0.2501288, 1.298862,
+          0.3211588, 3.411058, 0.7552599, 0.101143, 0.11, 5.1]
+      vd: [56.0, 20.4, 55.9, 55.9, 23.0, 64.167]
+      nominal_wavelength: 550.
+      freeze:
+        s:  # Freeze last two spacings; the last one is solved for and the second to last is an IR filter
+          default: False
+          toggle_row_col_list: [-1, -2]
+        c:  # Freeze last three curvatures; the last one is solved for and the other two correspond to the IR filter
+          default: False
+          toggle_row_col_list: [-1, -2, -3]
+        g:  # Freeze last material; it corresponds to the IR filter
+          default: False
+          toggle_row_col_list:
+            - [-1, null]
+        a:  # Freeze all conic constants since they overlap with aspherical coefficients in r^4
+          default: False
+          toggle_row_col_list:
+            - [null, 0]
+        d: False
+        m:
+          default: True
+          toggle_row_col_list:
+            - [null, 0]
+            - [null, 1]
+            - [null, 2]
+            - [null, 3]
+      target_efl: 25.9
+      solve_type: image_height
+      solve_idx: -3
+      paraxial_image_solve: False
+      total_track_length_solve: 19.425
+      qc_vars: False
+      scale_factor: 4.625
+      bezier_aspherics: True
+      glass_file: configs/moldable_materials.csv
+      misc_surface_model:
+        class_path: eisoptx.modeling.misc_surfaces.DispersionEngineeredMetasurface
+        init_args:
+          normalization_radius: 4.625
+          w0: 550.
+          bezier_parameterization: True

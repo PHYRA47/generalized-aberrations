@@ -1,0 +1,31 @@
+model:
+  e2e_vector_mode: True
+  e2e_loss_weight: .1  #If None, monitor only
+  e2e_loss_fn: mse
+  irm_e2e_loss_fn: mae
+  residuals+:
+    - class_path: eisoptx.optimization.residuals.TransverseRayAberrationResiduals
+      init_args:
+        weight:  # If None, monitor only
+  noise_sigma: 0.005
+data:
+  class_path: eisoptx.data.datasets.ImageFolderDataModule  # For end-to-end optimization
+  init_args:
+    train_folder: data/DIV2K_train_HR
+    val_folder: data/DIV2K_valid_HR
+    batch_size: 16
+    val_batch_size: 8
+    tile_layout: [8, 8]  # Layout (vertical, horizontal)
+    transforms:
+      - class_path: torchvision.transforms.RandomCrop
+        init_args:
+          size: 256
+    val_transforms:
+      - class_path: torchvision.transforms.CenterCrop
+        init_args:
+          size: 256
+trainer:
+  accelerator: auto
+  max_steps: 25000
+  log_every_n_steps: 1
+  val_check_interval: 100

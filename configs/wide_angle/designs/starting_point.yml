@@ -1,0 +1,48 @@
+model:
+  lens_parameterization:
+    class_path: eisoptx.optimization.parameterization.LensParameterization
+    init_args:
+      lens_sequence: s-aRa-aRa-aRa-aRa-aRa-aRa-
+      a:
+        - [-1.0, 0., 0., 0., 0., 0.]
+        - [-1.0, 0., 0., 0., 0., 0.]
+        - [-1.0, 0., 0., 0., 0., 0.]
+        - [-1.0, 0., 0., 0., 0., 0.]
+        - [-1.0, 0., 0., 0., 0., 0.]
+        - [-1.0, 0., 0., 0., 0., 0.]
+        - [-1.0, 0., 0., 0., 0., 0.]
+        - [-1.0, 0., 0., 0., 0., 0.]
+        - [-1.0, 0., 0., 0., 0., 0.]
+        - [-1.0, 0., 0., 0., 0., 0.]
+        - [-1.0, 0., 0., 0., 0., 0.]
+        - [-1.0, 0., 0., 0., 0., 0.]
+      c: [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]
+      d: []
+      m: []
+      # Materials: coc, ps, coc, ps, okp4, pc
+      nd: [1.5337, 1.5904, 1.5337, 1.5904, 1.6328, 1.5904]
+      vd: [56.22, 30.87, 56.22, 30.87, 23.34, 30.87]
+      s: [.5, .25, .5, .25, .5, .25, .5, .25, .5, .25, .5, 5., 4]
+      nominal_wavelength: 550.
+      freeze:
+        s: False
+        c:  # Freeze last curvature
+          default: False
+          toggle_row_col_list: [-1]
+        g: True
+        a:  # Freeze all conic constants since they overlap with aspherical coefficients in r^4
+          default: False
+          toggle_row_col_list:
+            - [null, 0]
+        d: True
+        m: True
+      target_efl: 4.3458705154714705
+      solve_type: focal_length
+      solve_idx: -1
+      paraxial_image_solve: False
+      total_track_length_solve:
+      qc_vars: False
+      scale_factor: 1.09
+      bezier_aspherics: True
+      glass_file:
+      misc_surface_model:

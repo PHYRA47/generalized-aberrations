@@ -1,0 +1,31 @@
+model:
+  e2e_vector_mode: True
+  e2e_loss_weight: 1.
+  e2e_loss_fn: mse
+  residuals+:
+    - class_path: eisoptx.optimization.residuals.TransverseRayAberrationResiduals
+      init_args:
+        weight:
+  image_restoration_model:
+  noise_sigma: 0
+data:
+  class_path: eisoptx.data.datasets.ImageFolderDataModule
+  init_args:
+    train_folder: configs/ablation/sample_image
+    val_folder: configs/ablation/sample_image
+    batch_size: 1
+    val_batch_size: 1
+    tile_layout: [1, 1]
+    transforms:
+      - class_path: torchvision.transforms.RandomCrop
+        init_args:
+          size: 1024
+    val_transforms:
+      - class_path: torchvision.transforms.CenterCrop
+        init_args:
+          size: 1024
+trainer:
+  accelerator: auto
+  max_steps: 1000
+  log_every_n_steps: 1
+  val_check_interval: 100

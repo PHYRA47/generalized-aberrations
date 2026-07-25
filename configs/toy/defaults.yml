@@ -1,0 +1,157 @@
+model:
+  lens_parameterization:
+    class_path: eisoptx.optimization.parameterization.LensParameterization
+    init_args:
+      lens_sequence: s-aRa-aRa-
+      a:
+        - [-1., 0., 0., 0.]
+        - [-1., 0., 0., 0.]
+        - [-1., 0., 0., 0.]
+        - [-1., 0., 0., 0.]
+      c: [0., 0., 0., 0.]
+      d: []
+      m: []
+      nd: [1.5, 1.5]
+      s: [.5, 1., .5, 2., 9.]
+      vd: [1e6, 1e6]
+      nominal_wavelength: 550.
+      scale_factor: 2.5
+      freeze:
+        s: False
+        c:
+          default: False
+          toggle_row_col_list: [-1]
+        g: True
+        a:
+          default: False
+          toggle_row_col_list:
+            - [null, 0]
+        d: True
+        m: True
+      target_efl: 10.
+      solve_type: focal_length
+      solve_idx: -1
+      paraxial_image_solve: False
+      bezier_aspherics: False
+      qc_vars: False
+      glass_file:
+  ray_initialization:
+    class_path: eisoptx.modeling.ray_initialization.RayInitialization
+    init_args:
+      aperture_type: epd
+      aperture: 5.
+      hfov: 30.
+      n_fields: 11
+      pupil_sampling_mode: skew_uniform_jittered
+      pupil_sampling_kwargs:
+        n_r: 16
+        n_i: 1
+      ray_aiming_steps: 0
+      wavelengths: [550.]
+  residuals:
+    - class_path: eisoptx.optimization.residuals.TransverseRayAberrationResiduals
+      init_args:
+        weight: 1.
+        reduce_to_scalar: False
+    - class_path: eisoptx.optimization.residuals.RayPathResiduals
+      init_args:
+        weight: 20.
+        min_cutoff: .5
+        max_cutoff: .inf
+        min_cutoff_refractive: .5
+        max_cutoff_refractive: 6.
+        min_cutoff_refractive_relative: 0.3333
+        max_cutoff_refractive_relative: 3.
+        other_min_cutoffs: []
+        other_max_cutoffs: []
+    - class_path: eisoptx.optimization.residuals.RayAngleResiduals
+      init_args:
+        weight: 10.
+        max_angle: 60.
+    - class_path: eisoptx.optimization.residuals.SurfaceNormalResiduals
+      init_args:
+        weight: 10.
+        max_angle: 30.
+  optics_simulator:
+    class_path: eisoptx.modeling.simulation.OpticsSimulator
+    init_args:
+      shape: [1024, 1024]
+      shape_type: image
+      psf_abs_size: 281.3e-3  # 37x37 pixels
+      sigma_rel: 1.
+      diffraction_f_number:
+      kernel_type: linear
+      psf_grid_shape: [9, 9]
+      wavelength_weights:
+        - [1.]
+        - [1.]
+        - [1.]
+      patch_overlap: 0.25
+  lens_optimizer:
+    class_path: eisoptx.optimization.optimizers.LMOptimizer
+    init_args:
+      lm_parameter: 1.
+      damped_term_min: 1e-8
+      tolerance: 1.
+      lam_eps: 1e-12
+data:
+  class_path: eisoptx.data.datasets.NoneDataModule  # For siloed lens optimization
+  init_args:
+    n_samples: 100
+trainer:
+  accelerator: auto
+  max_steps: 1000
+  log_every_n_steps: 1
+  val_check_interval: 100
+  check_val_every_n_epoch:
+  precision: 64
+  logger:
+    - class_path: eisoptx.main.CustomLogger
+      init_args:
+        save_dir: logs/logs_ablation
+    - class_path: CSVLogger
+      init_args:
+        save_dir: logs/logs_ablation
+  callbacks:
+#    - pytorch_lightning.callbacks.LearningRateMonitor
+    - eisoptx.utils.callbacks.CodeVSeqFileCallback
+    - class_path: eisoptx.utils.callbacks.ConfigFileCallback
+      init_args:
+        every_n_steps: 10
+    - eisoptx.main.CustomProgressBar
+    - class_path: ModelCheckpoint
+      init_args:
+        every_n_train_steps: 100
+    - class_path: eisoptx.utils.visualization.VisualizationCallback
+      init_args:
+        every_n_steps: 10
+        visualizations:
+          - class_path: eisoptx.utils.visualization.LensLayout
+            init_args:
+              wavelengths: [550., 550., 550.]
+              n_fields: 3
+              n_rays: 3
+              rc_params:
+                figure.figsize: '3.2, 2.4'
+                lines.linewidth: '.75'
+                axes.linewidth: '.75'
+                xtick.major.size: '5.'
+                xtick.minor.size: '3.'
+                ytick.major.size: '5.'
+                ytick.minor.size: '3.'
+                font.size: '7'
+          - class_path: eisoptx.utils.visualization.RGBPSFs
+            init_args:
+              field_indices: [0, 2, 4, 6, 8, 10]
+              rc_params:
+                figure.figsize: '3.2, 1.6'
+                font.size: '6'
+        save_formats: []
+        rc_params:
+          figure.figsize: '3.2, 2.1'
+          figure.constrained_layout.use: 'True'
+          figure.constrained_layout.h_pad: '0.015625'
+          figure.constrained_layout.w_pad: '0.015625'
+          figure.dpi: '200'
+          font.size: '7'
+          lines.linewidth: '.75'

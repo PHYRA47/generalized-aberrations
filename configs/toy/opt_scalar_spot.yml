@@ -1,0 +1,6 @@
+model:
+  residuals+:
+    - class_path: eisoptx.optimization.residuals.TransverseRayAberrationResiduals
+      init_args:
+        weight: 1.
+        reduce_to_scalar: True

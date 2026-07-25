@@ -1,0 +1,7 @@
+model:
+  lens_optimizer:
+    class_path: torch.optim.Adam
+    init_args:
+      lr: 0.001
+      betas: [0.9, 0.99]
+      foreach: False

@@ -1,0 +1,100 @@
+model:
+  lens_parameterization:
+    class_path: eisoptx.optimization.parameterization.LensParameterization
+    init_args:
+      lens_sequence: s-d-
+      s: [0.02, 1.]
+      c: []
+      nd: []
+      vd: []
+      a: []
+      d: [[-0.5, 0.]]
+      m: []
+      nominal_wavelength: 550.
+      scale_factor: .25
+      freeze:
+        s: True
+        c: False
+        g: False
+        a: False
+        d: [True, False]
+        m: False
+      target_efl: 1.
+      solve_idx:
+      paraxial_image_solve: False
+  ray_initialization:
+    class_path: eisoptx.modeling.ray_initialization.RayInitialization
+    init_args:
+      aperture: .5
+      aperture_type: epd
+      hfov: 20.
+      n_fields: 10
+      pupil_sampling_mode: skew_uniform_jittered
+      pupil_sampling_kwargs:
+        n_r: 16
+        n_i: 1
+      ray_aiming_steps: 0
+      wavelengths: [450., 550., 650.]
+  residuals:
+  - class_path: eisoptx.optimization.residuals.TransverseRayAberrationResiduals
+    init_args:
+      weight: 1.
+  lens_optimizer:
+    class_path: eisoptx.optimization.optimizers.LMOptimizer
+    init_args:
+      lm_parameter: 1.
+      damped_term_min: 1e-4
+data:
+  class_path: eisoptx.data.datasets.NoneDataModule
+  init_args:
+    n_samples: 100
+trainer:
+  accelerator: auto
+  max_steps: 200
+  log_every_n_steps: 1
+  val_check_interval: 100
+  check_val_every_n_epoch:
+  precision: 64
+  logger:
+    class_path: eisoptx.main.CustomLogger
+    init_args:
+      save_dir: logs
+  callbacks:
+  - eisoptx.utils.callbacks.CodeVSeqFileCallback
+  - eisoptx.utils.callbacks.ConfigFileCallback
+  - eisoptx.main.CustomProgressBar
+  - class_path: ModelCheckpoint
+    init_args:
+      every_n_train_steps: 100
+  - class_path: eisoptx.utils.visualization.VisualizationCallback
+    init_args:
+      every_n_steps: 10
+      visualizations:
+      - class_path: eisoptx.utils.visualization.LensLayout
+        init_args:
+          wavelengths: [450., 550., 650.]
+          n_fields: 3
+          n_rays: 21
+          rc_params:
+            lines.linewidth: '.75'
+            axes.linewidth: '.75'
+            xtick.major.size: '5.'
+            xtick.minor.size: '3.'
+            ytick.major.size: '5.'
+            ytick.minor.size: '3.'
+            font.size: '7'
+      - class_path: eisoptx.utils.visualization.PSFs
+        init_args:
+          wavelength_indices: [2, 1, 0]
+          field_indices: [0, 3, 6, 9]
+          psf_sampler:
+            class_path: eisoptx.modeling.simulation.PSFSampler
+            init_args:
+              psf_shape: 65
+              psf_abs_size: .2
+      save_formats: [png]
+      rc_params:
+        figure.figsize: '3.2, 2.4'
+        font.size: '7'
+        figure.constrained_layout.use: 'True'
+        figure.dpi: '200'

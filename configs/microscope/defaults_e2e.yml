@@ -1,0 +1,47 @@
+model:
+  # E2E loss
+  e2e_vector_mode: True
+  e2e_loss_weight: .01  #If None, monitor only
+  e2e_loss_fn: mse
+  irm_e2e_loss_fn: mae
+  # Residuals
+  residuals+:
+    - class_path: eisoptx.optimization.residuals.TransverseRayAberrationResiduals
+      init_args:
+        weight:  # If None, monitor only
+  noise_sigma: 0.005
+data:
+  class_path: eisoptx.data.datasets.ImageFolderDataModule  # For end-to-end optimization
+  init_args:
+    train_folder: data/BBBC041_train
+    val_folder: data/BBBC041_valid
+    batch_size: 16
+    val_batch_size: 8
+    tile_layout: [6, 10]  # Layout (vertical, horizontal)
+    transforms:
+      - class_path: torchvision.transforms.RandomCrop
+        init_args:
+          size: 1024
+      - class_path: torchvision.transforms.Resize
+        init_args:
+          size: 256
+          interpolation: 3  # bicubic
+      - class_path: torchvision.transforms.RandomHorizontalFlip
+        init_args:
+          p: 0.5
+      - class_path: torchvision.transforms.RandomVerticalFlip
+        init_args:
+          p: 0.5
+    val_transforms:
+      - class_path: torchvision.transforms.CenterCrop
+        init_args:
+          size: 1024
+      - class_path: torchvision.transforms.Resize
+        init_args:
+          size: 256
+          interpolation: 3  # bicubic
+trainer:
+  accelerator: auto
+  max_steps: 25000
+  log_every_n_steps: 1
+  val_check_interval: 100

@@ -1,0 +1,64 @@
+model:
+  e2e_vector_mode: True
+  e2e_loss_weight: .1  #If None, monitor only
+  e2e_loss_fn: mse  # Mean squared error for the lens
+  irm_e2e_loss_fn: mae  # Mean absolute error for the image restoration model
+  residuals+:
+    # For E2E optimization, TRE residuals are not used
+    # We overwrite TRE residuals so that they have zero weight and are only monitored
+    - class_path: eisoptx.optimization.residuals.TransverseRayAberrationResiduals
+      init_args:
+        weight:  # If None, monitor only
+  image_restoration_model:
+    class_path: eisoptx.image_restoration.models.ImageRestorationChainer
+    init_args:
+      models:
+        - class_path: eisoptx.image_restoration.nafnet.NAFNet
+          init_args:
+            width: 16
+            middle_blk_num: 1
+            enc_blk_nums: [1, 1, 1, 4]
+            dec_blk_nums: [1, 1, 1, 1]
+        - class_path: eisoptx.image_restoration.wiener.WienerDeconvolution
+          init_args:
+            detach_psfs: False
+            snr_initial_value: 1000.
+        - class_path: eisoptx.image_restoration.nafnet.NAFNet
+          init_args:
+            width: 16
+            middle_blk_num: 1
+            enc_blk_nums: [1, 1, 1, 4]
+            dec_blk_nums: [1, 1, 1, 1]
+  noise_sigma: 0.005
+  irm_optimizer:
+    class_path: torch.optim.Adam
+    init_args:
+      lr: 0.001
+      betas: [0.9, 0.9]
+      foreach: False  # To avoid bug with Pytorch 2.1, float64 precision and CUDA usage
+  irm_lr_scheduler:
+    class_path: torch.optim.lr_scheduler.CosineAnnealingLR
+    init_args:
+      T_max: 25000
+      eta_min: 0.
+data:
+  class_path: eisoptx.data.datasets.ImageFolderDataModule  # For E2E optimization
+  init_args:
+    train_folder: data/DIV2K_train_HR
+    val_folder: data/DIV2K_valid_HR
+    batch_size: 16
+    val_batch_size: 8
+    tile_layout: [24, 32]  # Layout of sensor regions (vertical, horizontal)
+    transforms:
+      - class_path: torchvision.transforms.RandomCrop
+        init_args:
+          size: 256
+    val_transforms:
+      - class_path: torchvision.transforms.CenterCrop
+        init_args:
+          size: 256
+trainer:
+  accelerator: auto
+  max_steps: 25000
+  log_every_n_steps: 1
+  val_check_interval: 100

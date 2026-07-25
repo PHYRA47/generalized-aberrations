@@ -1,0 +1,40 @@
+model:
+  lens_parameterization:
+    class_path: eisoptx.optimization.parameterization.LensParameterization
+    init_args:
+      lens_sequence: s-R-R-R-R-R-R-R-R-
+      a: []
+      c: [-0.1045524, 0.01342605, 0.004198704, -0.07127796, 0.01496048, -0.03168517, -0.02776621,
+          0.02004257, -0.001720626, -0.04214594, 0.02164117, -0.01972269, -0.02432494, -0.01400175,
+          0.06939804, 0.03347238]
+      d: []
+      dpgf: [0.002299999, 0.01620001, 0.004500001, 0.002299997, 0.0051, 0.0051, 0.005399999,
+             0.0051]
+      m: []
+      nd: [2.0033, 1.784723, 1.603001, 2.0033, 1.618, 1.618, 1.7888, 1.618]
+      s: [1.386697, 2.934274, 2.175392, 3.998238, 24.44356, 3.985338, 0.4999328, 1.333339,
+          1.743884, 3.992853, 0.500392, 4.004303, 0.7662485, 1.17615, 0.4985301, 4.004659,
+          20.0]
+      vd: [28.27314, 25.6831, 65.43689, 28.27312, 63.33265, 63.33265, 28.4283, 63.33265]
+      nominal_wavelength: 550.
+      freeze:
+        s:  # Freeze last thickness; working distance is fixed
+          default: False
+          toggle_row_col_list: [-1]
+        c:  # Freeze last curvature; the last one is solved for
+          default: False
+          toggle_row_col_list: [-1]
+        g: False
+        a: False
+        d: False
+        m: False
+      target_efl: 10.
+      solve_type: focal_length
+      solve_idx: -1
+      paraxial_image_solve: False
+      total_track_length_solve:
+      qc_vars: False
+      scale_factor: 4.
+      bezier_aspherics: True
+      glass_file: configs/recommended_ohara_glass.csv
+      misc_surface_model:

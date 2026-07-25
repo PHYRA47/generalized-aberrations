@@ -1,0 +1,6 @@
+model:
+  lens_optimizer:
+    class_path: torch.optim.SGD
+    init_args:
+      lr: 0.001
+      foreach: False

@@ -1,0 +1,38 @@
+model:
+  lens_parameterization:
+    class_path: eisoptx.optimization.parameterization.LensParameterization
+    init_args:
+      lens_sequence: s-aRa-aRa-
+      a:
+        - [-1.0, 0.0002416331, -7.138998e-05, 5.890843e-06]
+        - [-1.0, 7.123309e-05, -5.618887e-06, 5.56928e-07]
+        - [-1.0, -0.0002667672, 2.264903e-06, 6.74904e-09]
+        - [-1.0, -8.75002e-05, -7.924807e-07, 4.325117e-08]
+      c: [-0.2178221, -0.1592065, 0.102961, -0.09216289]
+      d: []
+      dpgf: [0.0, 0.0]
+      m: []
+      nd: [1.5, 1.5]
+      s: [1.322843, 3.183254, 0.4969364, 6.004849, 10.2154]
+      vd: [1000000.0, 1000000.0]
+      nominal_wavelength: 550.
+      scale_factor: 2.5
+      freeze:
+        s: False
+        c:
+          default: False
+          toggle_row_col_list: [-1]
+        g: True
+        a:
+          default: False
+          toggle_row_col_list:
+            - [null, 0]
+        d: True
+        m: True
+      target_efl: 10.
+      solve_type: focal_length
+      solve_idx: -1
+      paraxial_image_solve: False
+      bezier_aspherics: False
+      qc_vars: False
+      glass_file:
