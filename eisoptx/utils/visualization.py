@@ -1698,7 +1698,7 @@ def plot_layout(
 
 def wavelengths2color(
     wavelengths: list[float] | np.ndarray,
-    cmap: mpl.colors.Colormap = mpl.cm.get_cmap("nipy_spectral"),
+    cmap: mpl.colors.Colormap = mpl.colormaps["nipy_spectral"],
 ):
     """Convert wavelengths to colors using a colormap.
 
