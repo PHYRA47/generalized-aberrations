@@ -528,7 +528,7 @@ class GlassModel(torch.nn.Module):
         covariance_matrix_weighted = np.cov(
             pca_weighted_data_normalized, rowvar=False, aweights=weights, bias=True
         )
-        eigenvalues, eigenvectors = np.linalg.eig(covariance_matrix_weighted)
+        eigenvalues, eigenvectors = np.linalg.eigh(covariance_matrix_weighted)
 
         # Sort eigenvectors by descending eigenvalues
         sorted_indices = eigenvalues.argsort()[::-1]
