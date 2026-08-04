@@ -452,7 +452,7 @@ class GlassPlot(Visualization):
                 nd[i].cpu(),
                 marker="x",
                 s=16,
-                c=colors[i],
+                color=colors[i],
                 label=f"Glass {i + 1}",
             )
             # Annotate the index of each optimized glass
@@ -470,7 +470,7 @@ class GlassPlot(Visualization):
             ax_nd.annotate(str(i + 1), (vd[i].cpu(), nd[i].cpu()), **kwargs)
             if self.plot_partial_dispersion:
                 ax_dpgf.scatter(
-                    vd[i].cpu(), dpgf[i].cpu(), marker="x", s=16, c=colors[i]
+                    vd[i].cpu(), dpgf[i].cpu(), marker="x", s=16, color=colors[i]
                 )
                 ax_dpgf.annotate(str(i + 1), (vd[i].cpu(), dpgf[i].cpu()), **kwargs)
 
