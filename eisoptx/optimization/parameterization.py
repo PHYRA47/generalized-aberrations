@@ -89,7 +89,16 @@ class LensParameterization(torch.nn.Module):
             dpgf = [0.0] * len(nd)
         parameters = (s, nd, vd, dpgf, c, a, d, m)
         initial_parameters = {
-            k: torch.tensor(v) for k, v in zip(self.parameter_keys, parameters)
+            # NOTE: dtype is explicit. `v` is a Python list parsed from the config YAML,
+            # and torch.tensor() on a Python list follows the GLOBAL default dtype. Under
+            # the default (float32) the prescription decimals are truncated to ~7 digits
+            # HERE -- before Lightning's precision plugin casts the tensors up -- giving
+            # float64 containers holding float32-truncated values, so every dtype check
+            # passes while the precision is already gone. Input precision must not depend
+            # on the compute precision; Lightning casts back down when precision=32, so
+            # this costs nothing there.
+            k: torch.tensor(v, dtype=torch.float64)
+            for k, v in zip(self.parameter_keys, parameters)
         }
         self.w0 = nominal_wavelength
         self.misc_surface_model = misc_surface_model
@@ -289,8 +298,15 @@ class LensParameterization(torch.nn.Module):
             "nd": nd,
             "vd": vd,
             "dpgf": dpgf,
-            "a": a / self.scale_factor**a_exp,
-            "d": lens_variables["d"] / self.scale_factor**d_exp,
+            # NOTE: `a_exp`/`d_exp` are int64, and `float_scalar ** int_tensor` promotes to
+            # the GLOBAL default dtype rather than the operand's. Casting the exponent to
+            # the operand keeps the power in the operand's precision, and stays correct if
+            # defaults ever change. This matters: the divisor reaches scale_factor**20 ~
+            # 3.6e-05, and in float32 carries ~6e-07 relative error applied straight to the
+            # aspheric coefficients -- the worst-conditioned quantity in the lens (~14
+            # orders of magnitude of spread). This runs on EVERY forward pass.
+            "a": a / self.scale_factor ** a_exp.to(a),
+            "d": lens_variables["d"] / self.scale_factor ** d_exp.to(lens_variables["d"]),
             "m": lens_variables["m"],
         }
 
@@ -469,12 +485,22 @@ class GlassModel(torch.nn.Module):
             self.catalog_glass_names = None
 
         # Store results in class attributes for further use
-        self.register_buffer("w", torch.tensor(w))
-        self.register_buffer("w_inv", torch.tensor(w_inv))
-        self.register_buffer("mean", torch.tensor(mean))
-        self.register_buffer("eigenvalues", torch.tensor(eigenvalues))
+        # NOTE: dtype is explicit because in the `glass_file is None` branch above these
+        # are plain Python lists, so torch.tensor() would follow the global default
+        # (float32) and then clash with the float64 lens parameters in g_from_nd_vd_dpgf
+        # ("expected m1 and m2 to have the same dtype"). In the PCA branch they are numpy
+        # arrays, whose dtype torch.tensor() already preserves, so this is a no-op there.
+        self.register_buffer("w", torch.tensor(w, dtype=torch.float64))
+        self.register_buffer("w_inv", torch.tensor(w_inv, dtype=torch.float64))
+        self.register_buffer("mean", torch.tensor(mean, dtype=torch.float64))
         self.register_buffer(
-            "catalog_g", torch.tensor(catalog_g) if catalog_g is not None else None
+            "eigenvalues", torch.tensor(eigenvalues, dtype=torch.float64)
+        )
+        self.register_buffer(
+            "catalog_g",
+            torch.tensor(catalog_g, dtype=torch.float64)
+            if catalog_g is not None
+            else None,
         )
 
         self.glass_mesh = None
@@ -733,7 +759,10 @@ def get_normalized_variables(
     a_exp = torch.tensor([0] + [2 * (i + 2) for i in range(lens.a.shape[-1] - 1)]).to(
         lens.a.device
     )
-    a = lens.a * scale_factor**a_exp
+    # NOTE: `.to(lens.a)` on the exponent -- see the matching note in `lens`. int64
+    # exponents would make this power follow the global default dtype instead of the
+    # operand's, truncating the aspheric coefficients in the normalization direction too.
+    a = lens.a * scale_factor ** a_exp.to(lens.a)
     if aspherics_mat is not None:
         a = (aspherics_mat.to(lens.a) @ a[..., 1:].permute(0, 2, 1)).permute(0, 2, 1)
         a = torch.cat((lens.a[..., 0:1], a), dim=-1)
@@ -748,7 +777,7 @@ def get_normalized_variables(
         "g": glass_model.g_from_nd_vd_dpgf(lens.nd, lens.vd, lens.dpgf),
         "c": lens.c * scale_factor,
         "a": a,
-        "d": lens.d * scale_factor**d_exp,
+        "d": lens.d * scale_factor ** d_exp.to(lens.d),
         "m": lens.m,
     }
     return lens_parameters
