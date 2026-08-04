@@ -89,7 +89,7 @@ model:
       paraxial_image_solve: False
       total_track_length_solve: 4.802
       qc_vars: False
-      scale_factor: 0.59975  # EPD / 2 = 0.59975 mm
+      scale_factor: 1  # EPD / 2 = 0.59975 mm
       bezier_aspherics: True
       glass_file:
       misc_surface_model:

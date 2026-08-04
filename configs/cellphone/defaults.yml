@@ -19,6 +19,11 @@ model:
       pupil_sampling_kwargs:
         n_r: 8
         n_i: 1
+        # The jittered azimuths never reach theta = +/-90 deg, so without this the
+        # surface-normal limit is evaluated on rays that never violate it.
+        # Alternative with the same effect and no code change: n_i: 2 (see
+        # docs/asphere_extrapolation/README.md).
+        include_meridional_rim: true
       ray_aiming_steps: 0
       ray_aiming_locations: tbs
       field_stop_position:
@@ -64,6 +69,19 @@ model:
       init_args:
         weight: 10.
         max_angle: 40.  # strongly aspheric plastics; 30 deg clips the L5 surfaces
+    - class_path: eisoptx.optimization.residuals.SurfaceSlopeResiduals
+      init_args:
+        weight: 10.
+        max_angle: 40.  # same limit as above, but on a fixed radial grid rather than
+        # at ray intersections, so it also bounds the profile over the clear-aperture
+        # margin where the high-order coefficients would otherwise diverge freely
+        n_samples: 32
+        aperture_scaler: 1.0625  # 17/16, matching the layout's diameter_scaler
+        constraint: false  # kept soft on purpose: this starting point already violates
+        # the 40 deg limit, and LMOptimizer's constrained branch enforces the linearized
+        # constraint exactly, so the step does not shrink as damping grows -- lm_parameter
+        # runs away to 1e8 with every step rejected. Set to true only from a feasible
+        # start. As a penalty the violation falls from 0.152 to 0.0023 in 60 steps.
     - class_path: eisoptx.optimization.residuals.DistortionResiduals
       init_args:
         weight: 10.

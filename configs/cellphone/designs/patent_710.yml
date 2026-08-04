@@ -12,9 +12,15 @@
 #                      z = c*r^2/(1+sqrt(1-(1+k)c^2 r^2)) + sum p_i r^(2(i+2)).
 #                      The article's Extended-Asphere formula uses a NORMALIZED rho;
 #                      do not rescale these coefficients for that form.
-# NOTE: run with trainer.precision: 64. In float32 the aspheric marching solve
-#       fails on ~22% of rays at this scale (sub-mm airspaces, R as small as
-#       0.592 mm); in float64 the design traces 100% valid.
+# NOTE: traces 100% valid at BOTH trainer.precision 32 and 64, and the two agree
+#       to 7 significant figures. That requires the explicit-dtype fix in
+#       optimization/parameterization.py: lens params were built with
+#       torch.tensor(list), which follows the GLOBAL default dtype, so these
+#       decimals were truncated to float32 at construction and only then cast up
+#       to float64 -- wide containers holding already-truncated values. At this
+#       scale (sub-mm airspaces, R down to 0.592 mm) it lost 36% of the rays
+#       at precision 64 and 28% at precision 32, with the distortion loss
+#       reading 0.440 / 0.473 instead of 0.0106.
 model:
   lens_parameterization:
     class_path: eisoptx.optimization.parameterization.LensParameterization
@@ -76,7 +82,7 @@ model:
         c:
           default: False
           toggle_row_col_list: [0, 1, -1, -2, -3]  # cover, IR filter, EFL-solved surface
-        g: True  # materials are discrete moldable plastics, not continuous variables
+        g: True  # FROZEN: nd/vd used verbatim. See glass_file note below to optimize.
         a:  # freeze conic constants; they overlap with the r^4 aspheric term
           default: False
           toggle_row_col_list:
@@ -88,8 +94,8 @@ model:
       solve_idx: -3  # L5 rear surface (last powered surface before the IR filter)
       paraxial_image_solve: False
       total_track_length_solve: 4.802
-      qc_vars: False
-      scale_factor: 0.59975  # EPD / 2 = 0.59975 mm
+      qc_vars: False  # set True together with freeing `g` rows above
+      scale_factor: 1  # EPD / 2 = 0.59975 mm
       bezier_aspherics: True
-      glass_file:
+      glass_file: configs/moldable_plastics.csv
       misc_surface_model:
