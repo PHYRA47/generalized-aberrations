@@ -141,7 +141,15 @@ class OpticsSimulator(torch.nn.Module):
 
         # Compute RGB PSFs
         # Matrix multiplication with the wavelength weight matrix to convert wavelengths into RGB channels
-        rgb_psfs = torch.einsum("fbwij,wc->fbcij", psfs, self.wavelength_weights)
+        # NOTE: `.to(psfs)` because the two operands' dtypes are set by different mechanisms.
+        # `wavelength_weights` is a registered buffer, so Lightning's precision plugin casts
+        # it (float32 when precision=32), whereas `psfs` inherits from the traced rays, which
+        # originate from numpy in ray_initialization and are therefore always float64.
+        # Without the cast this einsum raises "expected scalar type Float but found Double"
+        # whenever precision=32. Following the data imposes no precision of its own.
+        rgb_psfs = torch.einsum(
+            "fbwij,wc->fbcij", psfs, self.wavelength_weights.to(psfs)
+        )
         return psfs, rgb_psfs
 
     def compute_psf_grid(
@@ -328,7 +336,12 @@ class FixedPSFsOpticsSimulator(OpticsSimulator):
 
         # Compute RGB PSFs
         # Matrix multiplication with the wavelength weight matrix to convert wavelengths into RGB channels
-        rgb_psfs = torch.einsum("fbwij,wc->fbcij", psfs, self.wavelength_weights)
+        # NOTE: `.to(psfs)` -- same reason as in OpticsSimulator above. Here `psfs` is loaded
+        # from a .npy file, so it carries numpy's dtype (typically float64) while the buffer
+        # follows the trainer precision.
+        rgb_psfs = torch.einsum(
+            "fbwij,wc->fbcij", psfs, self.wavelength_weights.to(psfs)
+        )
         return psfs, rgb_psfs
 
 
@@ -410,7 +423,7 @@ class PSFSampler(torch.nn.Module):
         x, y = xy
         ray_valid = torch.isfinite(xy).all(dim=0)
         y_centroid = ra.evaluate_mean_ray_height(
-            y, ray_valid, (1, 2), self.wavelength_weights
+            y, ray_valid, (1, 2), self.wavelength_weights.to(y)
         )
         y = y - y_centroid.expand_as(y).where(ray_valid, 0.0)
 
