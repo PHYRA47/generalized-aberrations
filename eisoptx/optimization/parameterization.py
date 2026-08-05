@@ -34,7 +34,7 @@ class LensParameterization(torch.nn.Module):
         total_track_length_solve: float | None = None,
         qc_vars: bool = False,
         glass_file: str | None = None,
-        freeze: dict[str, bool | list | dict] | None = None,
+        freeze: dict[str, bool | list[bool] | dict] | None = None,
         scale_factor: float = 1,
     ):
         """Constructor.

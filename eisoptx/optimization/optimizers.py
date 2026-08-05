@@ -1,6 +1,6 @@
 import warnings
 import math
-from typing import Iterable
+from typing import Any, Iterable
 
 import torch
 import torch.optim
@@ -12,7 +12,7 @@ class LMOptimizer(torch.optim.Optimizer):
 
     def __init__(
             self,
-            params: Iterable,
+            params: Iterable[Any],
             lm_parameter: float = 1.0,
             damped_term_min: float = 1e-4,
             tolerance: float = 2.0,
