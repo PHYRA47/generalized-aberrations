@@ -18,12 +18,13 @@ model:
       pupil_sampling_mode: skew_uniform_jittered
       pupil_sampling_kwargs:
         n_r: 8
-        n_i: 1
-        # The jittered azimuths never reach theta = +/-90 deg, so without this the
-        # surface-normal limit is evaluated on rays that never violate it.
-        # Alternative with the same effect and no code change: n_i: 2 (see
-        # docs/asphere_extrapolation/README.md).
-        include_meridional_rim: true
+        # n_i: 1 leaves SurfaceNormalResiduals blind at the meridional rim: the
+        # jittered azimuths only reach theta = 87.0 deg, and the rear aspheres are
+        # steepest at +/-90 deg, so the guard below is evaluated on rays that never
+        # violate it. n_i: 2 reaches 88.5 deg (|y| = 0.9996) at 2x the rays, which is
+        # enough -- on the degenerate step-2490 lens the worst angle the residual
+        # sees goes 45.6 -> 79.9 deg. See docs/asphere_extrapolation/README.md.
+        n_i: 2
       ray_aiming_steps: 0
       ray_aiming_locations: tbs
       field_stop_position:
@@ -69,19 +70,11 @@ model:
       init_args:
         weight: 10.
         max_angle: 40.  # strongly aspheric plastics; 30 deg clips the L5 surfaces
-    - class_path: eisoptx.optimization.residuals.SurfaceSlopeResiduals
-      init_args:
-        weight: 10.
-        max_angle: 40.  # same limit as above, but on a fixed radial grid rather than
-        # at ray intersections, so it also bounds the profile over the clear-aperture
-        # margin where the high-order coefficients would otherwise diverge freely
-        n_samples: 32
-        aperture_scaler: 1.0625  # 17/16, matching the layout's diameter_scaler
-        constraint: false  # kept soft on purpose: this starting point already violates
-        # the 40 deg limit, and LMOptimizer's constrained branch enforces the linearized
-        # constraint exactly, so the step does not shrink as damping grows -- lm_parameter
-        # runs away to 1e8 with every step rejected. Set to true only from a feasible
-        # start. As a penalty the violation falls from 0.152 to 0.0023 in 60 steps.
+        # NOTE: this bounds the normal only where rays actually land. It cannot bound
+        # the profile over the clear-aperture margin (diameter_scaler) that gets
+        # manufactured but never traced, so a compliant loss here does not certify a
+        # compliant part. With n_i: 2 the rear group still reaches ~65 deg at the drawn
+        # edge; closing that gap needs a grid-sampled residual (see the code-fix branch).
     - class_path: eisoptx.optimization.residuals.DistortionResiduals
       init_args:
         weight: 10.
@@ -101,7 +94,7 @@ data:
     n_samples: 100
 trainer:
   accelerator: auto
-  max_steps: 20000
+  max_steps: 2000
   log_every_n_steps: 1
   val_check_interval: 100
   check_val_every_n_epoch:
@@ -125,8 +118,9 @@ trainer:
           - class_path: eisoptx.utils.visualization.LensLayout
             init_args:
               wavelengths: [450., 650., 550.]
-              n_fields: 4
-              n_rays: 5
+              n_fields: 3
+              n_rays: 3
+              diameter_scaler: 1.0
               rc_params:
                 axes.linewidth: '.75'
                 xtick.major.size: '5.'

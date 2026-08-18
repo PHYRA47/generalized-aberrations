@@ -1,0 +1,130 @@
+# Experiment B: minimize total track length (form factor), materials/EFL fixed.
+#
+# Warm start = patent_710_real_materials.yml geometry. Drops the exact
+# `total_track_length_solve` constraint (was 4.802mm) so the last spacing is a
+# free variable like every other spacing, and replaces it with
+# TotalTrackLengthResiduals: a ONE-SIDED penalty (s.flip(0).cumsum()[-1] - target,
+# clipped at 0) with an aggressively low target (3.5mm, ~27% smaller than the
+# patent's 4.802mm). Since it only penalizes exceeding the target, it just pulls
+# TTL down as far as the physical residuals below allow, rather than forcing an
+# exact number -- the optimizer finds its own floor in one run.
+#
+# Tighter packaging means steeper ray incidence and surface-normal tilt at the
+# rear group, so RayAngleResiduals.max_angle (65->75) and
+# SurfaceNormalResiduals.max_angle (40->55) are loosened relative to
+# defaults.yml/patent_710_real_materials.yml. RayPathResiduals is left as-is;
+# tighten further only if it becomes the binding constraint.
+#
+# target_efl and solve_idx are UNCHANGED -- same optical spec, smaller package.
+# Materials are frozen (real substitution, not the plastic catalog) to isolate the
+# TTL effect -- see opt_materials.yml for the separate material experiment.
+model:
+  lens_parameterization:
+    class_path: eisoptx.optimization.parameterization.LensParameterization
+    init_args:
+      # R = cover glass | s = stop (at L1 front, patent's dummy surf 3/4)
+      # aRa x5 = the five extended aspheres | R = IR cut filter
+      lens_sequence: R-s-aRa-aRa-aRa-aRa-aRa-R-
+      a:  # [conic K, A4, A6, A8, A10, A12, A14, A16, A18, A20] per aspheric surface
+        - [0., -0.0754068, 0.231315, -1.64698, 4.43718, -6.54981, 3.03756, 0., 0., 0.]  # L1 front (surf  5)
+        - [0., -0.22436, -0.245325, 0.265302, -0.903303, 1.04281, -0.95042, -0.170912, 0., 0.]  # L1 back  (surf  6)
+        - [0., -0.563451, 0.560572, -5.39081, 15.5628, -23.4623, 16.2935, -3.65427, 0., 0.]  # L2 front (surf  7)
+        - [0., -0.424662, 1.44087, -6.9929, 17.0595, -23.5796, 18.9485, -8.32376, 1.56115, 0.]  # L2 back  (surf  8)
+        - [0., -0.233007, 2.12497, -8.17804, 16.6612, -19.5817, 13.6595, -5.30161, 0.886355, 0.]  # L3 front (surf  9)
+        - [-1., -0.0194019, 0.021374, -0.057457, 0.220338, -0.425957, 0.386038, -0.113319, 0.00224867, 0.]  # L3 back  (surf 10)
+        - [0., 0.115599, -0.457601, 0.741619, -0.974199, 0.856136, -0.480696, 0.155943, -0.0217562, 0.]  # L4 front (surf 11)
+        - [-1., 0.0386776, -0.341815, 0.414133, -0.319359, 0.156504, -0.0453415, 0.00705167, -0.000455397, 0.]  # L4 back  (surf 12)
+        - [-1., -0.816695, 0.387565, -0.0640573, -0.00108281, -0.00448342, 0.00416376, -0.00124009, 0.000168211, -8.92759e-06]  # L5 front (surf 13)
+        - [-1., -1.10499, 1.06232, -0.80308, 0.441832, -0.165942, 0.0407746, -0.00623311, 0.000536585, -1.98606e-05]  # L5 back  (surf 14)
+      c:  # 1/R per interface; 0 = plano (cover front, IR filter both faces)
+        - 0.             # surf  1 cover front  (Inf)
+        - -0.005154639175257732 # surf  2 cover back   (R=-194.000)
+        - 0.4880429477794046 # surf  5 L1 front     (R=   2.049)
+        - -0.005472674934054267 # surf  6 L1 back      (R=-182.726)
+        - 0.0297601333253973 # surf  7 L2 front     (R=  33.602)
+        - 0.15487068297971193 # surf  8 L2 back      (R=   6.457)
+        - -0.27314941272876264 # surf  9 L3 front     (R=  -3.661)
+        - -1.0111223458038423 # surf 10 L3 back      (R=  -0.989)
+        - 0.2041649652919559 # surf 11 L4 front     (R=   4.898)
+        - 0.4892367906066536 # surf 12 L4 back      (R=   2.044)
+        - 1.287001287001287 # surf 13 L5 front     (R=   0.777)
+        - 1.6891891891891893 # surf 14 L5 back      (R=   0.592)
+        - 0.             # surf 15 IRCF front   (Inf)
+        - 0.             # surf 16 IRCF back    (Inf)
+      d: []
+      m: []
+      nd: [1.517, 1.544, 1.68, 1.544, 1.68, 1.544, 1.517]
+      vd: [64.2, 56., 18.2, 56., 18.2, 56., 64.2]
+      s:  # thickness at each element, air gap at each '-' (mm)
+        - 0.8          # cover glass thickness
+        - 0.15         # cover back -> stop
+        - 0.           # stop -> L1 front        (stop AT the L1 front vertex; see note above)
+        - 0.527        # L1 centre thickness
+        - 0.231        # L1 -> L2
+        - 0.251        # L2 centre thickness
+        - 0.098        # L2 -> L3
+        - 0.876        # L3 centre thickness
+        - 0.05         # L3 -> L4
+        - 0.35         # L4 centre thickness
+        - 0.097        # L4 -> L5
+        - 0.301        # L5 centre thickness
+        - 0.386        # L5 -> IR filter
+        - 0.21         # IR filter thickness
+        - 0.475        # IR filter -> sensor (free now; no longer solved from TTL)
+      nominal_wavelength: 550.
+      freeze:
+        s:  # free every spacing including the image gap; only the cover/IRCF thicknesses
+            # are fixed hardware (their own physical parts, not part of the optical solve)
+          default: False
+          toggle_row_col_list: [0, -2]  # cover thickness, IRCF thickness
+        c:
+          default: False
+          toggle_row_col_list: [0, 1, -1, -2, -3]  # cover, IR filter, EFL-solved surface
+        g: True  # materials fixed to the real substitution; not part of this experiment
+        a:  # freeze conic constants; they overlap with the r^4 aspheric term
+          default: False
+          toggle_row_col_list:
+            - [null, 0]
+        d: True
+        m: True
+      target_efl: 2.399
+      solve_type: focal_length
+      solve_idx: -3  # L5 rear surface (last powered surface before the IR filter)
+      paraxial_image_solve: False
+      total_track_length_solve:  # unset: last spacing is free, TTL is only soft-penalized below
+      qc_vars: False
+      scale_factor: 1  # EPD / 2 = 0.59975 mm
+      bezier_aspherics: True
+      glass_file:
+      misc_surface_model:
+  residuals:
+    - class_path: eisoptx.optimization.residuals.TransverseRayAberrationResiduals
+      init_args:
+        weight: 1.
+    - class_path: eisoptx.optimization.residuals.RayPathResiduals
+      init_args:
+        weight: 20.
+        min_cutoff: .05
+        max_cutoff: .inf
+        min_cutoff_refractive: .2
+        max_cutoff_refractive: 1.
+        min_cutoff_refractive_relative: 0.3333
+        max_cutoff_refractive_relative: 3.
+        other_min_cutoffs: []
+        other_max_cutoffs: []
+    - class_path: eisoptx.optimization.residuals.RayAngleResiduals
+      init_args:
+        weight: 10.
+        max_angle: 75.  # loosened from 65 -- tighter packaging steepens incidence at the rear group
+    - class_path: eisoptx.optimization.residuals.SurfaceNormalResiduals
+      init_args:
+        weight: 10.
+        max_angle: 55.  # loosened from 40 -- same reason
+    - class_path: eisoptx.optimization.residuals.DistortionResiduals
+      init_args:
+        weight: 10.
+        threshold: 0.02
+    - class_path: eisoptx.optimization.residuals.TotalTrackLengthResiduals
+      init_args:
+        weight: 5.
+        target: 3.5  # aggressive target; one-sided penalty finds its own floor
