@@ -11,8 +11,8 @@ model:
 data:
   class_path: eisoptx.data.datasets.ImageFolderDataModule
   init_args:
-    train_folder: configs/ablation/sample_image
-    val_folder: configs/ablation/sample_image
+    train_folder: configs/toy/sample_image
+    val_folder: configs/toy/sample_image
     batch_size: 1
     val_batch_size: 1
     tile_layout: [1, 1]
