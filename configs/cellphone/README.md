@@ -101,30 +101,23 @@ The dispersion model also reproduces the patent's `nd` exactly at 587.56 nm.
 Through the repo's own CLI (`test` on both configs): **EFL 2.399 mm, TTL 4.802 mm,
 100% valid rays**.
 
-## Required: run in float64
+## float64 precision
 
 `trainer.precision: 64` casts *module parameters*, but tensors built inside pupil
-sampling and ray initialization follow torch's **global default dtype** (float32).
-At this scale — sub-mm airspaces, radii down to 0.592 mm — the float32 aspheric
-marching solve fails and **silently discards every field beyond ~30°**:
-
-| | stock `eisoptx.main` | `run_fp64.py` |
-|---|---|---|
-| `ray_valid` | 0.636 | **1.000** |
-| `ray_miss` | 0.328 | **0.000** |
-| `loss/distortion` | 0.440 | **0.0106** |
-| `loss/transverse_ray_aberration` | 0.0461 | **0.0042** |
-
-That is a 40× error in the distortion loss, not a rounding difference — it would
-have driven the optimizer against a corrupted objective. `run_fp64.py` (added at
-the repo root) sets the global dtype before any module is built. It was checked
-against the existing designs: `wide_angle/ours` and `telephoto/5p1_front_tr70_spot`
-agree to 4+ significant digits, so it is safe to use generally.
+sampling and ray initialization used to follow torch's **global default dtype**
+(float32). At this scale — sub-mm airspaces, radii down to 0.592 mm — float32
+caused the aspheric marching solve to fail and silently discard every field
+beyond ~30° (40× error in `loss/distortion`, 33% `ray_miss`). This is now fixed
+at the source: tensor construction in `LensParameterization`/`GlassModel` is
+explicitly `dtype=torch.float64`, and the remaining dtype mismatches in
+`OpticsSimulator`/`PSFSampler` are resolved with `.to(...)` casts (see commits
+`4594571` and `55181b1`). No global dtype override or wrapper script is needed —
+run the CLI directly.
 
 ## Run
 
     export PYTHONPATH=$PWD KMP_AFFINITY=disabled OMP_NUM_THREADS=4
-    python run_fp64.py test -c configs/cellphone/defaults.yml \
+    python -m eisoptx.main test -c configs/cellphone/defaults.yml \
                             -c configs/cellphone/designs/patent_710.yml
 
 `patent_710.yml` uses the patent's idealized indices;
