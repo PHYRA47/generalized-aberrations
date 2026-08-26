@@ -56,9 +56,3 @@ data:
       - class_path: torchvision.transforms.CenterCrop
         init_args:
           size: 1024
-
-trainer:
-  accelerator: auto
-  max_steps: 25000
-  log_every_n_steps: 1
-  val_check_interval: 100
