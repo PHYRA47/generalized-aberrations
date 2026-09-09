@@ -43,16 +43,48 @@ model:
 data:
   class_path: eisoptx.data.datasets.ImageFolderDataModule
   init_args:
-    train_folder: configs/toy/sample_image
-    val_folder: configs/toy/sample_image
-    batch_size: 1
-    val_batch_size: 1
-    tile_layout: [1, 1]
+    train_folder: data/DIV2K_train_HR
+    val_folder: data/DIV2K_valid_HR
+    batch_size: 32
+    val_batch_size: 16
+    # tile_layout sets the FIELD ASPECT, not just the pixel mapping: compute_field_lims
+    # normalises by sqrt(n_rows^2 + n_cols^2), so the simulated field aspect is exactly
+    # n_rows/n_cols regardless of crop size. [1, 1] gives a SQUARE field (aspect 1.0)
+    # while this sensor is 1080x1920 (aspect 0.5625) -- the toy default, wrong here.
+    # [9, 16] = 0.5625 matches, and 9x120 = 1080, 16x120 = 1920 tiles the sensor exactly
+    # (cf. telephoto: [24, 32] x 256 = 6144x8192, aspect 0.75 = 6144/8192).
+    # gcd(1080, 1920) = 120, so crop 120 is the LARGEST exact patch; [18,32]/60 and
+    # [27,48]/40 are the only finer exact options. Crop 256 with [4, 7] would tile only
+    # 1024x1792 and never sample the outer field -- the worst-aberrated corner at 47.5 deg.
+    # NAFNet's padder_size is 2**4 = 16 and check_image_size pads 120 -> 128 internally,
+    # so the non-power-of-2 crop is safe.
+    # batch 32 gives 0.46 Mpx/step (telephoto: 256^2 x 16 = 1.05 Mpx); raise to 48 if the
+    # GPU allows. 144 tiles, and pseudorandom sampling spans tile_order every batch, so
+    # the most eccentric tile is drawn in every batch.
+    tile_layout: [9, 16]
     transforms:
       - class_path: torchvision.transforms.RandomCrop
         init_args:
-          size: 1024
+          size: 120
     val_transforms:
       - class_path: torchvision.transforms.CenterCrop
         init_args:
-          size: 1024
+          size: 120
+
+# Merges into defaults.yml's trainer block (logger/callbacks/precision inherited),
+# same as configs/telephoto/defaults_e2e.yml does.
+#
+# max_steps 25000 is the AGREED rung-2 / rung-3 budget, measured not guessed:
+#   optics only          1.00 s/step  (version_11)
+#   restoration only     2.67 s/step  (version_12)  -> 25000 steps = 18.5 h
+#   full end-to-end      5.72 s/step  (version_10)  -> 25000 steps = 39.7 h
+# Validation is negligible: 7.5 s per pass over all 100 DIV2K val images, so
+# val_check_interval 100 costs 0.5 h across the whole 25000 steps.
+#
+# CAUTION: irm_lr_scheduler.T_max above MUST equal max_steps or the cosine
+# schedule will not complete its decay. They agree at 25000 here. For the rung-4
+# screen at 5000 steps, override BOTH on the command line:
+#   --trainer.max_steps=5000 --model.irm_lr_scheduler.init_args.T_max=5000
+trainer:
+  max_steps: 25000
+  val_check_interval: 100
