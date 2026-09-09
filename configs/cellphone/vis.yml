@@ -1,0 +1,76 @@
+# Visualization overlay for the cellphone family.
+#
+# Split out of defaults.yml so the system defaults stay readable and figures are
+# opt-in per run. `callbacks+:` APPENDS to the callback list defaults.yml already
+# set (same mechanism defaults_e2e.yml uses for `residuals+:`); it does not replace
+# it, so ExtendedLoggingCallback / CodeVSeqFileCallback / ConfigFileCallback /
+# CustomProgressBar / ModelCheckpoint all survive.
+#
+# Usage -- append AFTER the design, so nothing overrides it:
+#
+#   PYTHONPATH=$PWD python -m eisoptx.main test \
+#     -c configs/cellphone/defaults.yml \
+#     -c configs/cellphone/designs/param_patent.yml \
+#     -c configs/cellphone/vis.yml
+#
+# every_n_steps: 10 is tuned for the 1000-step spot runs. For the 25k-step e2e
+# runs raise it (500-1000) or the figure I/O dominates the step time.
+trainer:
+  callbacks+:
+    - class_path: eisoptx.utils.visualization.VisualizationCallback
+      init_args:
+        every_n_steps: 10
+        visualizations:
+          - class_path: eisoptx.utils.visualization.LensLayout
+            init_args:
+              wavelengths: [450., 650., 550.]
+              n_fields: 3
+              n_rays: 3
+              diameter_scaler: 1.0
+              rc_params:
+                axes.linewidth: '.75'
+                xtick.major.size: '5.'
+                xtick.minor.size: '3.'
+                ytick.major.size: '5.'
+                ytick.minor.size: '3.'
+          - class_path: eisoptx.utils.visualization.GlassPlot
+            init_args:
+              plot_partial_dispersion: False
+              rc_params:
+                lines.linewidth: '1.'
+                figure.figsize: '3.2, 4.'
+          - class_path: eisoptx.utils.visualization.SpotDiagrams
+            init_args:
+              field_indices:
+              n_rows: 1
+              rc_params:
+                figure.figsize: '8.5, 1.8'
+          - class_path: eisoptx.utils.visualization.RayFanPlot
+            init_args:
+              wavelengths: [550., 450., 500., 600., 650.]
+              n_fields: 4
+              ref_w: 2
+              rc_params:
+                  figure.figsize: '3.2, 4.0'
+                  legend.columnspacing: '0.5'
+                  legend.handlelength: '1.25'
+          - class_path: eisoptx.utils.visualization.PSFs
+            init_args:
+              wavelength_indices:
+              field_indices: [0, 2, 4, 6, 8, 10]
+              sqrt_scale: False
+              normalize_by_max: True
+              cmap: 'inferno'
+              no_labels: False
+          - class_path: eisoptx.utils.visualization.CombinedRGBPSFs
+            init_args:
+              field_indices: [0, 2, 4, 6, 8, 10]
+        save_formats: [png]
+        rc_params:
+          figure.figsize: '3.2, 2.1'
+          figure.constrained_layout.use: 'True'
+          figure.constrained_layout.h_pad: '0.015625'
+          figure.constrained_layout.w_pad: '0.015625'
+          figure.dpi: '200'
+          font.size: '7'
+          lines.linewidth: '.75'
