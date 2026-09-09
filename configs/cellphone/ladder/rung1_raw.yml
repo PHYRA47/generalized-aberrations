@@ -1,0 +1,31 @@
+# Rung 1 of the supervisor's ladder: original optics, NO post-processing.
+# "What image quality do you get from the lens alone?"
+#
+# APPEND THIS AFTER defaults_e2e.yml -- it is a delta, not a standalone config.
+# It deliberately does NOT restate the data block: duplicating it (as
+# configs/c_mount/defaults_e2e_raw.yml does, being a standalone file) would let the
+# tile_layout/crop pair drift out of step with defaults_e2e.yml, and that pair is
+# the one number in this configuration that cannot be copied from another lens.
+#
+# Nulling the three IRM keys is what makes this "raw":
+#   image_restoration_model  -> imaging_system.py:399 falls back to
+#                               `restored_imgs = aberrated_imgs`, so the image
+#                               logger cannot raise and val/psnr_restored is
+#                               logged EQUAL to val/psnr_aberrated. That identity
+#                               is the built-in check that the rung ran as meant.
+#   irm_optimizer            -> nothing to train.
+#   irm_lr_scheduler         -> no optimizer to schedule.
+#
+# RUN WITH `validate`, NOT `fit`. imaging_system.py:572 raises
+# "At least one optimizer must be provided when fitting" once both optimizers are
+# absent, and rung 1 trains nothing by definition. `validate` also gives the
+# optical metrics for free: validation_step calls test_step(None, 0) on the first
+# batch, so TTL/EFL/distortion/relative-illumination/ray-validity all land in the
+# same log as the image metrics.
+#
+# The optics are whatever the design config sets and are never touched, so the
+# result is the honest "lens alone" number the supervisor asked for.
+model:
+  image_restoration_model: null
+  irm_optimizer: null
+  irm_lr_scheduler: null
