@@ -1,12 +1,5 @@
 # System-level defaults for the cellphone camera lens (US 2019/0129149 A1, sys 710).
 # Sensor/PSF numbers follow the specifications in Ansys KA-01995 Part 1:
-#   IMPORTANT: this design needs torch.set_default_dtype(torch.float64).
-#   trainer.precision:64 casts module params but NOT the tensors created inside
-#   pupil sampling / ray initialization, which follow the GLOBAL default dtype.
-#   At this scale (sub-mm airspaces, R down to 0.592 mm) the float32 aspheric
-#   marching solve fails: 33% ray-miss, all fields >30 deg lost, and the
-#   distortion loss reads 0.44 instead of 0.0106. See docs note for the runner.
-#   pixel ~2.5 um, Nyquist ~200 cyc/mm, MTF > 0.2 at Nyquist, semi-diagonal 2-2.7 mm.
 model:
   ray_initialization:
     class_path: eisoptx.modeling.ray_initialization.RayInitialization
@@ -18,13 +11,14 @@ model:
       pupil_sampling_mode: skew_uniform_jittered
       pupil_sampling_kwargs:
         n_r: 8
+        n_i: 2
         # n_i: 1 leaves SurfaceNormalResiduals blind at the meridional rim: the
         # jittered azimuths only reach theta = 87.0 deg, and the rear aspheres are
         # steepest at +/-90 deg, so the guard below is evaluated on rays that never
-        # violate it. n_i: 2 reaches 88.5 deg (|y| = 0.9996) at 2x the rays, which is
+        # violate it. 
+        # n_i: 2 reaches 88.5 deg (|y| = 0.9996) at 2x the rays, which is
         # enough -- on the degenerate step-2490 lens the worst angle the residual
         # sees goes 45.6 -> 79.9 deg. See docs/asphere_extrapolation/README.md.
-        n_i: 2
       ray_aiming_steps: 0
       ray_aiming_locations: tbs
       field_stop_position:
@@ -60,7 +54,15 @@ model:
         max_cutoff_refractive: 1.
         min_cutoff_refractive_relative: 0.3333
         max_cutoff_refractive_relative: 3.
-        other_min_cutoffs: []
+        # s[2] is the stop -> L1-front gap. Every cellphone design in designs/ has it at
+        # exactly 0.0: the Zemax export puts the aperture stop on the L1 front vertex via a
+        # collapsed dummy pair, so there is no air gap to be too thin. Left unexempted it is
+        # a permanent weight-20 violation (loss/ray_path = 0.0222 at baseline) that the
+        # optimizer can only relieve by opening the gap or bending L1's front surface --
+        # a design distortion driven by a modeling artifact. Same pattern as
+        # demo_tele4p.yml's [[0, -.inf]] (stop at a negative spacing) and telephoto's
+        # [[-2, -.inf]] (fixed IR-filter thickness).
+        other_min_cutoffs: [[2, -.inf]]
         other_max_cutoffs: []
     - class_path: eisoptx.optimization.residuals.RayAngleResiduals
       init_args:
@@ -79,6 +81,43 @@ model:
       init_args:
         weight: 10.
         threshold: 0.02
+
+    # ---- monitors: weight null => computed and logged, NEVER added to the loss ----
+    # Safe to live here precisely because they are weightless: they cannot change any
+    # solve. Verified empirically -- version_9 added them to the version_8 baseline and
+    # every other loss/* value came back bit-identical. Their cost is already inside the
+    # measured per-step budget in README.md (all three timing runs carried them).
+    #
+    # BOTH ARE HINGE RESIDUALS, so each logged value is a pass/fail GATE, not a
+    # measurement. imaging_system.py logs sqrt(sum(residual^2)), or exactly 0.0 when the
+    # residual vector is empty. So 0.0 = no violation = the good outcome, and a nonzero
+    # value tells you a violation exists but not how large the underlying quantity is.
+    # Per-field blur extent and corner RI have to come from a trace instead; see
+    # spot_extent_by_field.csv.
+    - class_path: eisoptx.optimization.residuals.RayBoundaryResiduals
+      init_args:
+        weight:                # None -> monitor only
+        x_boundary: 8.319e-03  # psf_abs_size (16.638e-03) / 2 = 3.5 px at 2.377 um pitch
+        y_boundary: 8.319e-03
+        # Bounds ray coordinates at the IMAGE PLANE relative to each field's centroid --
+        # a per-field blur box in mm. Nothing to do with per-surface clear apertures;
+        # eisoptx has no such machinery, so the Zemax semi-diameters stay a post-hoc
+        # check rather than a loss term. Same construction telephoto uses (0.0245 there).
+    - class_path: eisoptx.optimization.residuals.RelativeIlluminationResiduals
+      init_args:
+        weight:                # None -> monitor only
+        threshold: 0.157       # PROVISIONAL -- reset from a measured value
+        # telephoto uses 0.7 at hfov 11.155 deg, where cos^4 falloff alone gives 0.9265,
+        # i.e. it permits 24.5% below natural. At this lens's hfov 47.5 deg, cos^4 =
+        # 0.2083, so 0.7 is physically unreachable and would swamp the loss; the same
+        # 24%-below-natural allowance scales to 0.157. Note the residual is not cos^4 --
+        # it generalises Rimmer from traced ray-direction spreads against field 0, so it
+        # also picks up pupil aberration and vignetting that cos^4 cannot predict.
+    #
+    # Deliberately NOT here: GlassMeshDistanceResiduals. It constrains continuous glass
+    # variables, and materials are frozen for the early rungs (param_zemax710.yml sets
+    # freeze.g = True, qc_vars = False, glass_file = null).
+
   lens_optimizer:
     class_path: eisoptx.optimization.optimizers.LMOptimizer
     init_args:
@@ -94,7 +133,7 @@ data:
     n_samples: 100
 trainer:
   accelerator: auto
-  max_steps: 2000
+  max_steps: 1000
   log_every_n_steps: 1
   val_check_interval: 100
   check_val_every_n_epoch:
@@ -111,34 +150,5 @@ trainer:
     - class_path: ModelCheckpoint
       init_args:
         every_n_train_steps: 100
-    - class_path: eisoptx.utils.visualization.VisualizationCallback
-      init_args:
-        every_n_steps: 20
-        visualizations:
-          - class_path: eisoptx.utils.visualization.LensLayout
-            init_args:
-              wavelengths: [450., 650., 550.]
-              n_fields: 3
-              n_rays: 3
-              diameter_scaler: 1.0
-              rc_params:
-                axes.linewidth: '.75'
-                xtick.major.size: '5.'
-                xtick.minor.size: '3.'
-                ytick.major.size: '5.'
-                ytick.minor.size: '3.'
-          - class_path: eisoptx.utils.visualization.GlassPlot
-            init_args:
-              plot_partial_dispersion: False
-              rc_params:
-                lines.linewidth: '1.'
-                figure.figsize: '3.2, 4.'
-        save_formats: []
-        rc_params:
-          figure.figsize: '3.2, 2.1'
-          figure.constrained_layout.use: 'True'
-          figure.constrained_layout.h_pad: '0.015625'
-          figure.constrained_layout.w_pad: '0.015625'
-          figure.dpi: '200'
-          font.size: '7'
-          lines.linewidth: '.75'
+    # Visualizations live in configs/cellphone/vis.yml -- append it after the
+    # design config to get figures:  -c configs/cellphone/vis.yml
