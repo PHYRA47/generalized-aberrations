@@ -1,136 +1,114 @@
-# Cellphone camera lens — Ansys KA-01995 Part 1, replicated in `eisoptx`
+# Cellphone camera lens — layout and compose order
 
-## What the article actually contains
+US 2019/0129149 A1, system 710. Five plastic aspheres + cover glass + IR filter.
 
-The Ansys/Zemax article **"Designing Cell phone Camera Lenses Part 1: Optics"**
-does not publish its own prescription. It takes the design from
-**US 2019/0129149 A1, "Wide FOV 5 element lens system," lens system 710**
-(Tables 1, 2A, 2B, 3), enters it in OpticStudio, notes that the MTF target is
-missed as-published, and then reoptimizes with real catalog plastics.
+## Layout
 
-So the numeric source of truth is the patent, not the article. Both were used:
-the patent for the prescription, the article for design targets and the
-material substitution.
-
-> The article's own downloadable archive (`710_MobilePhoneLens.zip` →
-> `710_original.zar`, `710_reoptimized_MTF_materials_QType.zar`) was retrieved,
-> but `.zar` stores LZW-compressed entries, so the OpticStudio files were not
-> decoded. Every number below comes from the patent tables.
-
-## Prescription (patent Table 1) — `*` marks aspheric surfaces
-
-| Surf | R [mm] | Thickness [mm] | nd | vd | Element |
-|---|---|---|---|---|---|
-| 1 | Inf | 0.800 | 1.525 | 54.5 | cover glass |
-| 2 | -194.000 | 0.150 |  |  | cover glass back |
-| 3/4 | Inf | 0.000 |  |  | STOP (at L1 front vertex) |
-| 5* | 2.049 | 0.527 | 1.545 | 56.0 | L1 |
-| 6* | -182.726 | 0.231 |  |  |  |
-| 7* | 33.602 | 0.251 | 1.678 | 19.5 | L2 |
-| 8* | 6.457 | 0.098 |  |  |  |
-| 9* | -3.661 | 0.876 | 1.545 | 56.0 | L3 |
-| 10* | -0.989 | 0.050 |  |  |  |
-| 11* | 4.898 | 0.350 | 1.678 | 19.5 | L4 |
-| 12* | 2.044 | 0.097 |  |  |  |
-| 13* | 0.777 | 0.301 | 1.545 | 56.0 | L5 |
-| 14* | 0.592 | 0.386 |  |  |  |
-| 15 | Inf | 0.210 | 1.517 | 64.2 | IR cut filter |
-| 16 | Inf | 0.475 |  |  | to sensor |
-| 17 | Inf | -- |  |  | sensor |
-
-Design data (patent Table 3): **f = 2.399 mm, F/# = 2.0, full FOV = 95°,
-TTL/(2·ImaH) = 0.764**. TTL surface 1 → sensor = **4.802 mm**.
-
-## The two conventions that decide whether this transfers correctly
-
-**1. Aspheric coefficients are on the PHYSICAL radial coordinate `r` [mm].**
-This is the one real trap. The article presents OpticStudio's *Extended Asphere*
-formula, whose polynomial is defined on a **normalized** ρ = r/r_max. The patent
-tabulates on r in mm, and `eisoptx`'s `evaluate_aspherical_profile` also uses r
-in mm:
-
-    z = c·r² / (1 + √(1 − (1+k)c²r²)) + Σ pᵢ · r^(2(i+2))
-
-so the patent's `A4…A20` transfer **directly, with no rescaling**. Reading them
-as normalized coefficients is geometrically impossible — it would put a −1.19 mm
-polynomial departure on surface 6, whose base sag is only −0.001 mm.
-
-**2. The stop's negative spacing must be collapsed.** The patent places the stop
-on a dummy surface +0.055 mm past the cover glass, then steps **−0.055 mm** back
-to the L1 front vertex. Carried literally, `eisoptx` flags `delta_z < 0` as
-"backtrack" on every ray (45% backtrack, 20% valid). A stop coincident with the
-L1 front vertex is optically identical and traces cleanly.
-
-## Mapping onto the config schema
-
-| Config field | Value |
+| path | role |
 |---|---|
-| `lens_sequence` | `R-s-aRa-aRa-aRa-aRa-aRa-R-` |
-| `a` | 10 surfaces × [K, A4…A20] |
-| `target_efl` / `solve_type` / `solve_idx` | `2.399` / `focal_length` / `-3` |
-| `total_track_length_solve` | `4.802` |
-| `scale_factor` | `0.59975` (= EPD/2) |
-| `aperture_type` / `aperture` | `epd` / `1.1995` (= f/2.0) |
-| `hfov` | `47.5` |
+| `defaults.yml` | System defaults: sensor, field points, wavelengths, LM optimizer, trainer, and all residuals — including the two weightless monitors. Every run starts here. |
+| `defaults_e2e.yml` | Shared by every rung that forms images: DIV2K loader, restoration chain, e2e loss, 25 000-step budget. |
+| `vis.yml` | Figure overlay — layout, spot diagrams, PSF grid, ray fans. Optional; append last. |
+| `designs/param_*.yml` | The lens **as given**: a prescription, never optimized. `param_zemax710.yml` is the agreed baseline. |
+| `designs/opt_*.yml` | Optimization **experiments**: what to vary (drop an element, minimize TTL, materials). |
+| `ladder/rung1_raw.yml` | The one genuinely rung-specific delta: nulls the restoration net so rung 1 measures the lens alone. |
 
-The patent gives **10 coefficients per surface (K + A4…A20)**, more than the
-7 the existing `telephoto`/`wide_angle` configs carry; `LensParameterization`
-infers the count from the array, so no code change is needed.
+The split is by scope, not by topic: **top level is shared by every run, `ladder/` holds
+per-rung deltas.** `defaults_e2e.yml` sits at top level because all four rungs use it, and
+that also keeps the name it has in `telephoto/`, `c_mount/` and `microscope/`. `designs/`
+keeps the flat shape those folders use; the `param_` / `opt_` prefixes already separate
+prescriptions from experiments.
 
-Sensor block, from the article's stated specs (2.5 µm pixel, ~200 cyc/mm
-Nyquist, 2–2.7 mm semi-diagonal): `shape: [1080, 1920]` gives a 2.377 µm pixel
-and 210 cyc/mm Nyquist against a `sensor_diagonal` of 5.236 mm (auto-linked from
-f and hfov). `psf_abs_size: 16.638e-03` = 7 px. `diffraction_f_number: 2.0`
-gives a 1.34 µm Airy radius (the article quotes 1.4 µm).
+The aperture and illumination monitors used to be a separate `residuals_monitor.yml`
+overlay, kept out of `defaults.yml` so the baseline config stayed bit-identical to what
+version_8 ran. That reason expired once version_9 demonstrated they are inert — both carry
+`weight: null`, so they are logged and never enter the loss, and every other `loss/*` value
+came back bit-identical with them added. They now live in `defaults.yml`, which means you
+cannot forget to append them and every run in the ladder is monitored by default.
 
-## Verification
+## Compose order
 
-Independent of any solve, the patent's Table 3 **dimensionless invariants**
-audit every transcribed radius — all agree to better than 0.5%:
+Configs compose left to right and **later files override earlier ones**. This is not
+cosmetic — see the traps below. Every command starts with:
 
-| Quantity | Patent | Computed |
+    export PYTHONPATH=$PWD
+    BASE="-c configs/cellphone/defaults.yml -c configs/cellphone/designs/param_zemax710.yml"
+
+| rung | question it answers | subcommand | append after `$BASE` |
+|---|---|---|---|
+| baseline | does our forward model reproduce Zemax? | `test` | *nothing* |
+| 1 | what does the lens alone give? | `validate` | `-c configs/cellphone/defaults_e2e.yml -c configs/cellphone/ladder/rung1_raw.yml` |
+| 2 | ...plus a trained restoration net? | `fit` | `-c configs/cellphone/defaults_e2e.yml --model.lens_optimizer=null` |
+| 3 | ...training lens and net together? | `fit` | `-c configs/cellphone/defaults_e2e.yml` |
+| 4 | fewer elements / shorter track? | `fit` | rung 3 plus a `designs/opt_*.yml` — deferred |
+
+Rung 2 needs no config file of its own: `--model.lens_optimizer=null` is the documented
+way to disable the lens half (`imaging_system.py:563`), and it is cleaner than freezing all
+six variable keys because the LM solver has no guard against having zero free parameters.
+The composed config is written into each run's log by `ConfigFileCallback`, so a
+command-line flag is recorded just as durably as a file would be.
+
+Rung 1 must use `validate`, not `fit`: with both optimizers absent,
+`imaging_system.py:572` raises "At least one optimizer must be provided when fitting",
+and rung 1 trains nothing by definition. `validate` still yields the optical metrics,
+because `validation_step` calls `test_step(None, 0)` on the first batch.
+
+## Four traps this layout exists to prevent
+
+**1. The `trainer` block lives in `defaults_e2e.yml`.** It sets `max_steps: 25000`;
+`defaults.yml` sets 1000. Omit the overlay, or compose it before `defaults.yml`, and you
+silently get a 1000-step run that looks successful.
+
+**2. `T_max` must equal `max_steps`.** `irm_lr_scheduler.T_max` is the cosine schedule's
+horizon. They agree at 25000 in the committed files. When overriding the step count,
+override **both** or the learning rate barely decays:
+
+    --trainer.max_steps=5000 --model.irm_lr_scheduler.init_args.T_max=5000
+
+**3. `residuals+` overrides by name, and `--print_config` hides it.** `defaults_e2e.yml`
+appends a second `TransverseRayAberrationResiduals` with `weight: null`, so the composed
+config lists TRA twice — once at weight 1.0, once weightless. That looks like a bug and
+isn't: `imaging_system.py:85` does `{residual.name: residual for residual in
+residuals}.values()`, deduplicating by name and keeping the **last**. So the weightless one
+wins and TRA is monitor-only in every e2e rung — which is the intended semantics, since
+rung 3 is supposed to optimize the image, not the classical aberration term. `--print_config`
+prints the raw pre-dedup list, so trust `residual.name` over the printed length. The
+practical rule: **appending a residual whose name already exists replaces it.**
+
+**4. `s[2] = 0.0` is the stop on the L1 vertex, not a too-thin airspace.** Every design in
+`designs/` puts the aperture stop on L1's front vertex via a collapsed dummy pair, straight
+out of the Zemax export. `RayPathResiduals.min_cutoff` is 0.05 mm, so before the exemption
+this was a permanent weight-20 violation — `loss/ray_path` sat at 0.0222 in rungs 1 and 2
+and never moved, because those rungs froze the optics. Rung 3 frees the spacings, and the
+optimizer's two ways to relieve it are opening the gap or bending L1's front surface: a
+design change driven by a modeling artifact, not by image quality. **Do not fix this by
+freezing `s[2]`** — the cutoff hinges on per-ray `delta_z` through the airspace, which
+depends on both `s[2]` *and* L1's front sag (`residuals.py:191-270`), so freezing the
+spacing removes the cheap remedy and leaves only the surface-bending one. The fix is
+`other_min_cutoffs: [[2, -.inf]]` in `defaults.yml`, following `demo_tele4p.yml`'s
+`[[0, -.inf]]` (stop at a negative spacing) and `telephoto/defaults.yml`'s `[[-2, -.inf]]`
+(fixed IR-filter thickness). Index 2 is into the propagation-event list, which runs in the
+same order as the `s` array. Consequence: re-running rung 1 or 2 now logs
+`loss/ray_path` near 0 instead of 0.0222 — a monitor change only, since those rungs hold
+the optics fixed and the term never entered a gradient.
+
+Verify any composition without creating a log directory by appending `--print_config`.
+
+## Measured cost
+
+RTX 3090, batch 32, crop 120, `precision: 64`, DIV2K.
+
+| configuration | s/step | 25 000 steps |
 |---|---|---|
-| \|R1+R2\|/\|R1−R2\| | 0.978 | 0.9778 |
-| \|R5+R6\|/\|R5−R6\| | 1.740 | 1.7403 |
-| (R7+R8)/(R7−R8) | 2.433 | 2.4324 |
-| (R9+R10)/(R9−R10) | 7.383 | 7.4000 |
-| f_sys/f_L1 … f_L5 | 0.646, 0.203, 1.080, −0.440, 0.225 | 0.6446, 0.2027, 1.0765, −0.4407, 0.2240 |
+| optics only (`NoneDataModule`, no restoration) | 1.00 | 6.9 h |
+| restoration only (`--model.lens_optimizer=null`) | 2.67 | 18.5 h |
+| full end-to-end | 5.72 | 39.7 h |
 
-The dispersion model also reproduces the patent's `nd` exactly at 587.56 nm.
+The end-to-end step is 17.5 % LM solve, 46.7 % image path, 35.8 % the cost of
+`e2e_vector_mode: True` forcing the LM Jacobian to backprop through the restoration
+chain. Validation costs 7.5 s per pass over all 100 DIV2K validation images —
+negligible at `val_check_interval: 100`.
 
-Through the repo's own CLI (`test` on both configs): **EFL 2.399 mm, TTL 4.802 mm,
-100% valid rays**.
-
-## float64 precision
-
-`trainer.precision: 64` casts *module parameters*, but tensors built inside pupil
-sampling and ray initialization used to follow torch's **global default dtype**
-(float32). At this scale — sub-mm airspaces, radii down to 0.592 mm — float32
-caused the aspheric marching solve to fail and silently discard every field
-beyond ~30° (40× error in `loss/distortion`, 33% `ray_miss`). This is now fixed
-at the source: tensor construction in `LensParameterization`/`GlassModel` is
-explicitly `dtype=torch.float64`, and the remaining dtype mismatches in
-`OpticsSimulator`/`PSFSampler` are resolved with `.to(...)` casts (see commits
-`4594571` and `55181b1`). No global dtype override or wrapper script is needed —
-run the CLI directly.
-
-## Run
-
-    export PYTHONPATH=$PWD KMP_AFFINITY=disabled OMP_NUM_THREADS=4
-    python -m eisoptx.main test -c configs/cellphone/defaults.yml \
-                            -c configs/cellphone/designs/patent_710.yml
-
-`patent_710.yml` uses the patent's idealized indices;
-`patent_710_real_materials.yml` uses the article's substitution (N-BK7 cover and
-IR filter, APL5014C for L1/L3/L5, EP10000 for L2/L4).
-
-## Caveats
-
-- The article reports the patent prescription **misses the MTF target as-published**;
-  these configs reproduce the *starting point*, so they are a design to optimize
-  from, not a converged solution. `loss/distortion` ≈ 0.0106 vs ~1e-5 for the
-  repo's converged designs is expected.
-- Aspheric **clear semi-diameters are not in the patent tables**, so no aperture
-  limits are set; my sag comparison used estimated semi-apertures.
-- The reoptimized Q-type variant from the article was not transferred (its `.zar`
-  was not decoded, and `eisoptx` uses the even-asphere form).
+**Agreed budget:** rungs 1–3 at 25 000 steps, about 58 h total. Rung 4 is deferred until
+rung 3's result is known, since a sweep over lens variants is only worth 40 h per variant
+if training the lens beats leaving it fixed.
