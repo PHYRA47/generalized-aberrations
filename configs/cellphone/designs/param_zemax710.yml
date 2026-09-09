@@ -1,0 +1,131 @@
+# Cellphone camera lens -- 5 plastic aspheres, cover glass, IR filter.
+# BASELINE (rung 1 of the experiment ladder): frozen optics, no post-processing.
+#
+# Source: the Zemax prescription export 710_reoptimized_MTF_materials_QType,
+#         taken INTACT -- surfaces, spacings, materials, EFL and total track all
+#         from that one file. This is the Ansys Zemax knowledge-base design
+#         ("Designing Cell phone Camera Lenses Part 1: Optics", KA-01995), i.e.
+#         patent US 2019/0129149 A1 lens system 710 AFTER the moldable-plastic
+#         material swap was reoptimized for MTF.
+#
+# Why this file and not param_patent.yml / param_patent_q.yml:
+#   Those two carry the PATENT's spacings (TTL 4.802, EFL 2.399) but the article's
+#   SWAPPED materials (N-BK7 / APL5014C / EP10000, nd 1.5168/1.5440/1.6804) --
+#   the patent's own glasses were nd 1.525/1.545/1.678. Patent geometry was never
+#   optimized for these indices; the Zemax export is precisely that reoptimization,
+#   and its spacings differ by up to 154 um (L5->IRCF 0.475 vs 0.386, IRCF->sensor
+#   0.321 vs 0.475). Putting the export's surfaces on the patent's spacings gives
+#   neither design and measures worse than both (see baseline_candidates.csv:
+#   loss/transverse_ray_aberration 0.00974 for the hybrid vs 0.00734 here).
+#
+# Export system data:  EFL = 2.37954 mm, image-space F/# = 2.004585
+#                      TTL (surf 1 -> sensor) = 4.791 mm, stop radius 0.5932 mm
+#
+# Aspheric convention: evaluate_aspherical_profile's
+#                      z = c*r^2/(1+sqrt(1-(1+k)c^2 r^2)) + sum p_i r^(2(i+2))
+#                      on the PHYSICAL radial coordinate r [mm]. The article's
+#                      Extended-Asphere formula uses a NORMALIZED rho; do not
+#                      rescale these coefficients for that form.
+# Aspheric source:     A4..A26 are the EXACT even-asphere expansion of the export's
+#                      QCONASPH (Forbes Q-con) surfaces. The Q-con departure
+#                      u^4*sum_m a_m Q_m^con(u^2) with normalization radius 1 mm
+#                      expands exactly into even powers r^4..r^26; checked against
+#                      direct Q-con evaluation (<1e-12 mm) and the parse checked
+#                      against the report's own EDGE THICKNESS table (2.7e-6 mm).
+#                      Reproduces every surface to <=0.02 pm over its clear aperture.
+#                      Do NOT truncate back to A20: dropping r^22..r^26 costs
+#                      0.74 mm on surf 12, 28 mm on surf 13, 1.3 m on surf 14.
+#                      Rows are 13 wide; a_exp and the Bezier matrix both derive
+#                      their size from a.shape[-1], so nothing else needs changing.
+#                      CAVEAT: the Bezier matrix goes 9x9 (cond 5.7e3) -> 12x12
+#                      (cond 1.6e5) and its round-trip injects up to 71 nm of sag
+#                      on surf 14 in float64. That does not reach any logged metric
+#                      (Bezier on vs off agreed to 0.2% on every one), so it is left
+#                      True here; set False if you need the surfaces bit-exact.
+# Solve caveat:        solve_type: focal_length on solve_idx: -3 moves surf 14's
+#                      radius 0.59200 -> 0.59102 (0.98 um) to hit target_efl. That
+#                      is inside the export's 3-decimal rounding of R, so the solve
+#                      is absorbing rounding, not redesigning the surface.
+# NOTE: run with trainer.precision: 64. In float32 the aspheric marching solve
+#       fails on ~22% of rays at this scale (sub-mm airspaces, R as small as
+#       0.592 mm); in float64 the design traces 100% valid.
+model:
+  lens_parameterization:
+    class_path: eisoptx.optimization.parameterization.LensParameterization
+    init_args:
+      # R = cover glass | s = stop (at L1 front, export's dummy surf 3/4 pair)
+      # aRa x5 = the five extended aspheres | R = IR cut filter
+      lens_sequence: R-s-aRa-aRa-aRa-aRa-aRa-R-
+      a:  # [conic K, A4, A6, ... A26] per aspheric surface -- exact Q-con expansion
+        - [0., -0.07541981903, 0.231869690424, -1.656083155636, 4.51363820292, -6.910473287025, 4.00416270254, -1.374752234856, 0.805858498224, 0., 0., 0., 0.]  # L1 front (surf  5)
+        - [0., -0.22436002958752, -0.24532442970343, 0.26529867316293, -0.90330966683924, 1.042955845469, -0.9510572608577, 0.17222901525189, -0.0013443133573584, 0.000545362160343, 0., 0., 0.]  # L1 back  (surf  6)
+        - [0., -0.5634487253241, 0.56049352379328, -5.3897419567891, 15.555171101957, -23.4305489336, 16.213734361625, -3.5350859947603, -0.09751844486592, 0.0336407193174, 0., 0., 0.]  # L2 front (surf  7)
+        - [0., -0.42466205956251, 1.4408717863714, -6.9929194738674, 17.059612842275, -23.57998973974, 18.949342456159, -8.3249105152502, 1.5621143571025, -0.0004528677418083, 9.12228436658e-05, 0., 0.]  # L2 back  (surf  8)
+        - [0., -0.23300697921818, 2.1249696148695, -8.1780368788216, 16.661186386064, -19.581664488827, 13.659441840591, -5.3015496247962, 0.88631641216906, 1.3856896500603e-05, -2.139674464158e-06, 0., 0.]  # L3 front (surf  9)
+        - [-1., -0.019401740679469, 0.021371415225357, -0.057440197474928, 0.22027934015704, -0.42583391840404, 0.38587516821695, -0.11318196872113, 0.0021774444484272, 2.0862419123793e-05, -2.635187355878e-06, 0., 0.]  # L3 back  (surf 10)
+        - [0., 0.11559891493546, -0.45760003503351, 0.7416144653362, -0.97418739859594, 0.8561180374025, -0.48067840391195, 0.15593202340614, -0.021751972629627, -9.161409142431e-07, 8.54473199426e-08, 0., 0.]  # L4 front (surf 11)
+        - [-1., 0.038642793679525, -0.34155011470449, 0.41333063690868, -0.31805958677581, 0.15524378508392, -0.044573360765738, 0.0067547308906942, -0.00038470026212093, -9.459768331611e-06, 5.44491501246e-07, 0., 0.]  # L4 back  (surf 12)
+        - [-1., -0.81619708305631, 0.38465886188024, -0.057222785605217, -0.0098093356636827, 0.0023249535069385, 0.00073180025651775, -9.7870028967951e-05, -8.1380225757748e-05, 2.5534798318545e-05, -2.7274989738289e-06, 9.4313802279576e-08, 0.]  # L5 front (surf 13)
+        - [-1., -1.0940933283884, 1.0061637832362, -0.68791807294045, 0.31603451927482, -0.084540224222506, 0.0085931969184621, 0.0012113894831021, -0.00022904028414998, -7.7933289421047e-05, 2.6891524872933e-05, -3.019983420333e-06, 1.2195079882856e-07]  # L5 back  (surf 14)
+      c:  # 1/R per interface; 0 = plano (cover front, IR filter both faces)
+        - 0.             # surf  1 cover front  (Inf)
+        - -0.005154639175257732 # surf  2 cover back   (R=-194.000)
+        - 0.4880429477794046 # surf  5 L1 front     (R=   2.049)
+        - -0.005472674934054267 # surf  6 L1 back      (R=-182.726)
+        - 0.0297601333253973 # surf  7 L2 front     (R=  33.602)
+        - 0.15487068297971193 # surf  8 L2 back      (R=   6.457)
+        - -0.27314941272876264 # surf  9 L3 front     (R=  -3.661)
+        - -1.0111223458038423 # surf 10 L3 back      (R=  -0.989)
+        - 0.2041649652919559 # surf 11 L4 front     (R=   4.898)
+        - 0.4892367906066536 # surf 12 L4 back      (R=   2.044)
+        - 1.287001287001287 # surf 13 L5 front     (R=   0.777)
+        - 1.6891891891891893 # surf 14 L5 back      (R=   0.592)
+        - 0.             # surf 15 IRCF front   (Inf)
+        - 0.             # surf 16 IRCF back    (Inf)
+      d: []
+      m: []
+      nd: [1.517, 1.544, 1.68, 1.544, 1.68, 1.544, 1.517] # export: N-BK7 1.5168, APL5014C 1.54401, EP10000 1.68042
+      vd: [64.2, 56., 18.2, 56., 18.2, 56., 64.2] # export: 64.15 / 56.1 / 18.14
+      s:  # thickness at each element, air gap at each '-' (mm) -- EXPORT values
+        - 0.8          # cover glass thickness                    (same as patent)
+        - 0.15         # cover back -> stop                       (same as patent)
+        - 0.           # stop -> L1 front  (export puts STO 0.055 after the L1 front
+                       #  vertex via a +0.055/-0.055 dummy pair; net displacement is
+                       #  zero, so the stop sits AT the vertex here)
+        - 0.517        # L1 centre thickness                      (patent 0.527)
+        - 0.236        # L1 -> L2                                 (patent 0.231)
+        - 0.271        # L2 centre thickness                      (patent 0.251)
+        - 0.112        # L2 -> L3                                 (patent 0.098)
+        - 0.861        # L3 centre thickness                      (patent 0.876)
+        - 0.066        # L3 -> L4                                 (patent 0.05)
+        - 0.369        # L4 centre thickness                      (patent 0.35)
+        - 0.097        # L4 -> L5                                 (same as patent)
+        - 0.306        # L5 centre thickness                      (patent 0.301)
+        - 0.475        # L5 -> IR filter                          (patent 0.386)
+        - 0.21         # IR filter thickness                      (same as patent)
+        - 0.321        # IR filter -> sensor (solved from TTL)    (patent 0.475)
+      nominal_wavelength: 550.
+      freeze:
+        s:  # free the airspaces and lens thicknesses; hold the fixed hardware
+          default: False
+          toggle_row_col_list: [0, -1, -2]  # cover thickness, IRCF thickness, solved gap
+        c:
+          default: False
+          toggle_row_col_list: [0, 1, -1, -2, -3]  # cover, IR filter, EFL-solved surface
+        g: True  # materials are discrete moldable plastics, not continuous variables
+        a:  # freeze conic constants; they overlap with the r^4 aspheric term
+          default: False
+          toggle_row_col_list:
+            - [null, 0]
+        d: True
+        m: True
+      target_efl: 2.37954
+      solve_type: focal_length
+      solve_idx: -3  # L5 rear surface (last powered surface before the IR filter)
+      paraxial_image_solve: False
+      total_track_length_solve: 4.791
+      qc_vars: False
+      scale_factor: 1  # EPD / 2 = 0.59975 mm
+      bezier_aspherics: True
+      glass_file:
+      misc_surface_model:
