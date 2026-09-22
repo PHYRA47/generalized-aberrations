@@ -73,4 +73,7 @@ class CustomProgressBar(callbacks.TQDMProgressBar):
 if __name__ == "__main__":
     warnings.filterwarnings("ignore", ".*does not have many workers.*")
     torch.set_float32_matmul_precision("high")
+    torch.serialization.add_safe_globals(
+        [np._core.multiarray.scalar, np.dtype, np.dtypes.Float64DType]
+    )
     lightning_cli = CustomCLI(ImagingSystemModule, auto_configure_optimizers=False)
